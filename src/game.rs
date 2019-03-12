@@ -18,6 +18,9 @@ const REPEAT_DELAY_SOFT_DROP: f64 = 1000.0 / 60.0 * 3.0;
 const INITIAL_DELAY_MOVE: f64 = 1000.0 / 60.0 * 12.0;
 const REPEAT_DELAY_MOVE: f64 = 1000.0 / 60.0 * 3.0;
 
+const ANIMATION_DURATION_HARD_DROP: f64 = 300.0;
+const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
+
 trait Animation {
     fn is_finished(&self) -> bool;
     fn tick(&mut self, timestamp: f64);
@@ -58,7 +61,7 @@ struct LineClearAnimation {
     width: usize,
 }
 
-struct WooshAnimation {
+struct WhooshAnimation {
     timestamp: f64,
     interp: util::LinearInterp,
     points: Vec<(usize, usize)>,
@@ -98,7 +101,7 @@ impl Animation for LineClearAnimation {
     }
 }
 
-impl WooshAnimation {
+impl WhooshAnimation {
     fn new(points: Vec<(usize, usize)>, y1: i32, y2: i32, color: u32, timestamp: f64, duration: f64) -> Self {
         Self {
             timestamp: timestamp,
@@ -117,7 +120,7 @@ impl WooshAnimation {
     }
 }
 
-impl Animation for WooshAnimation {
+impl Animation for WhooshAnimation {
     fn is_finished(&self) -> bool {
         self.timestamp >= self.interp.end()
     }
@@ -125,19 +128,19 @@ impl Animation for WooshAnimation {
     fn tick(&mut self, timestamp: f64) {
         self.timestamp = timestamp;
 
-        let t = 1.0 - self.interp.t(self.timestamp);
-
-        let r = ((self.color >> 16) & 0xff) as f64 * t;
-        let g = ((self.color >>  8) & 0xff) as f64 * t;
-        let b = ((self.color      ) & 0xff) as f64 * t;
-
-        let ir = r.round() as u32;
-        let ig = g.round() as u32;
-        let ib = b.round() as u32;
-
-        let color = ir << 16 | ig << 8 | ib;
+        let t = self.interp.t(self.timestamp);
 
         for y in self.y1..self.y2 {
+            let intensity = {
+                let y_norm = (y - self.y1 + 1) as f64 / (self.y2 - self.y1) as f64;
+                if t <= y_norm {
+                    1.0 - t / y_norm
+                } else {
+                    0.0
+                }
+            };
+
+            let color = util::color_intensity(self.color, intensity);
             self.draw_points(y, color);
         }
 
@@ -216,20 +219,25 @@ impl GameRunning {
                     .map(|(x, y)| { (x + drop_pos.x as usize, y) })
                     .collect::<Vec<_>>();
 
-                let anim = WooshAnimation::new(
+                let anim = WhooshAnimation::new(
                     points,
                     self.active_piece.position.y,
                     drop_pos.y,
                     piece.color,
                     timestamp,
-                    150.0);
+                    ANIMATION_DURATION_HARD_DROP);
 
                 self.animations.push(Box::new(anim));
             }
 
             let cleared_lines = self.board.clear_lines();
             if !cleared_lines.is_empty() {
-                let anim = LineClearAnimation::new(cleared_lines, self.board.width(), timestamp, 300.0);
+                let anim = LineClearAnimation::new(
+                    cleared_lines,
+                    self.board.width(),
+                    timestamp,
+                    ANIMATION_DURATION_LINE_CLEAR,
+                );
                 self.animations.push(Box::new(anim));
             }
 

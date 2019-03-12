@@ -105,3 +105,15 @@ fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
         v
     }
 }
+
+pub fn color_intensity(color: u32, intensity: f64) -> u32 {
+    let r = ((color >> 16) & 0xff) as f64 * intensity;
+    let g = ((color >>  8) & 0xff) as f64 * intensity;
+    let b = ((color      ) & 0xff) as f64 * intensity;
+
+    let ir = r.round() as u32;
+    let ig = g.round() as u32;
+    let ib = b.round() as u32;
+
+    ir << 16 | ig << 8 | ib
+}
