@@ -27,18 +27,13 @@ const TOUCH_SWIPE_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 * 2.0;
 const TOUCH_TAP_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 / 2.0;
 const TOUCH_TAP_PERIOD_THRESHOLD: f64 = 500.0;
 
-trait GameState {
-    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>>;
+trait State {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>>;
 }
 
 struct Controller {
     button_input: input::ButtonInput,
     touch_input: input::TouchInput,
-}
-
-struct GameTitle {
-    board_width: usize,
-    board_height: usize,
 }
 
 struct ActivePiece {
@@ -47,7 +42,12 @@ struct ActivePiece {
     rotation: usize,
 }
 
-struct GameRunning {
+struct TitleState {
+    board_width: usize,
+    board_height: usize,
+}
+
+struct RunningState {
     pieces: Vec<piece::Piece>,
     board: board::Board,
     active_piece: ActivePiece,
@@ -57,7 +57,7 @@ struct GameRunning {
 struct Game {
     frame_index: u64,
     controller: Controller,
-    game_state: Box<dyn GameState>,
+    state: Box<dyn State>,
 }
 
 impl Controller {
@@ -69,7 +69,7 @@ impl Controller {
     }
 }
 
-impl GameTitle {
+impl TitleState {
     fn new(board_width: usize, board_height: usize) -> Self {
         Self {
             board_width: board_width,
@@ -78,22 +78,22 @@ impl GameTitle {
     }
 }
 
-impl GameState for GameTitle {
-    fn tick(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+impl State for TitleState {
+    fn tick(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_GAME_START) {
-            return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
         }
 
         None
     }
 }
 
-impl GameRunning {
+impl RunningState {
     fn new(board_width: usize, board_height: usize) -> Self {
         let pieces = piece::make_standard();
         let board = board::Board::new(board_width, board_height);
@@ -222,16 +222,16 @@ impl GameRunning {
         self.place_new_piece();
     }
 
-    fn handle_input_misc(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_misc(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_STOP_GAME) {
             self.board.clear();
-            return Some(Box::new(GameTitle::new(self.board.width(), self.board.height())));
+            return Some(Box::new(TitleState::new(self.board.width(), self.board.height())));
         }
 
         None
     }
 
-    fn handle_input_drop(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_drop(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_HARD_DROP) {
             self.hard_drop_piece(timestamp);
         }
@@ -244,7 +244,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_move(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_move(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         let ts_left = controller.button_input.get_button_press_timestamp(INPUT_MOVE_LEFT);
         let ts_right = controller.button_input.get_button_press_timestamp(INPUT_MOVE_RIGHT);
 
@@ -279,7 +279,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         let is_cw = controller.button_input.is_triggered(INPUT_ROTATE_CW);
         let is_ccw = controller.button_input.is_triggered(INPUT_ROTATE_CCW);
 
@@ -297,7 +297,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         None
             .or_else(|| { self.handle_input_misc(timestamp, &controller) })
             .or_else(|| { self.handle_input_drop(timestamp, &controller) })
@@ -306,8 +306,8 @@ impl GameRunning {
     }
 }
 
-impl GameState for GameRunning {
-    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+impl State for RunningState {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
                 x.tick(timestamp);
@@ -344,7 +344,7 @@ impl Game {
         Self {
             frame_index: 0,
             controller: Controller::new(),
-            game_state: Box::new(GameTitle::new(board_width, board_height)),
+            state: Box::new(TitleState::new(board_width, board_height)),
         }
     }
 
@@ -373,8 +373,8 @@ impl Game {
     }
 
     fn tick(&mut self, timestamp: f64) {
-        if let Some(new_state) = self.game_state.tick(timestamp, &self.controller) {
-            self.game_state = new_state;
+        if let Some(new_state) = self.state.tick(timestamp, &self.controller) {
+            self.state = new_state;
         }
 
         self.controller.button_input.update(timestamp);
