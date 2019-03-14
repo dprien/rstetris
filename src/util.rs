@@ -58,7 +58,7 @@ pub fn with_address_as_mut<T, F, R>(address: u32, f: F) -> R
     f(&mut rc.borrow_mut())
 }
 
-fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
+pub fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
     if v < min {
         min
     } else if v > max {
