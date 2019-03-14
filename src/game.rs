@@ -100,7 +100,105 @@ impl GameRunning {
         self.active_piece.position = self.board.initial_position(piece, self.active_piece.rotation);
     }
 
-    fn input_misc(&mut self, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn move_piece_x(&mut self, offset: i32) {
+        let step = {
+            if offset > 0 {
+                1
+            } else if offset < 0 {
+                -1
+            } else {
+                return;
+            }
+        };
+
+        let piece = &self.pieces[self.active_piece.index];
+        for _ in 0..offset.abs() {
+            let new_position = self.active_piece.position.add_x(step);
+            if self.board.collides(piece, &new_position, self.active_piece.rotation) {
+                break;
+            }
+            self.active_piece.position = new_position;
+        }
+    }
+
+    fn move_piece_y(&mut self, offset: i32) {
+        if offset <= 0 {
+            return;
+        }
+
+        let piece = &self.pieces[self.active_piece.index];
+        for _ in 0..offset.abs() {
+            let new_position = self.active_piece.position.add_y(1);
+            if self.board.collides(piece, &new_position, self.active_piece.rotation) {
+                break;
+            }
+            self.active_piece.position = new_position;
+        }
+    }
+
+    fn rotate_piece(&mut self, offset: i32) {
+        if offset == 0 {
+            return;
+        }
+
+        let piece = &self.pieces[self.active_piece.index];
+        for _ in 0..offset.abs() {
+            let new_rotation = {
+                if offset > 0 {
+                    self.active_piece.rotation.wrapping_add(1)
+                } else {
+                    self.active_piece.rotation.wrapping_sub(1)
+                }
+            };
+
+            for y in 0..2 {
+                let pos = self.active_piece.position.add_y(y);
+                if !self.board.collides(piece, &pos, new_rotation) {
+                    self.active_piece.position = pos;
+                    self.active_piece.rotation = new_rotation;
+                    break;
+                }
+            }
+        }
+    }
+
+    fn hard_drop_piece(&mut self, timestamp: f64) {
+        let piece = &self.pieces[self.active_piece.index];
+
+        let drop_pos = self.board.find_drop_position(piece, &self.active_piece.position, self.active_piece.rotation);
+        self.board.put_piece(piece, &drop_pos, self.active_piece.rotation);
+
+        if drop_pos != self.active_piece.position {
+            let points = piece.iter_coords(self.active_piece.rotation)
+                .map(|(x, y)| { (x + drop_pos.x as usize, y) })
+                .collect::<Vec<_>>();
+
+            let anim = gfx::WhooshAnimation::new(
+                points,
+                self.active_piece.position.y,
+                drop_pos.y,
+                piece.color.clone(),
+                timestamp,
+                ANIMATION_DURATION_HARD_DROP);
+
+            self.animations.push(Box::new(anim));
+        }
+
+        let cleared_lines = self.board.clear_lines();
+        if !cleared_lines.is_empty() {
+            let anim = gfx::LineClearAnimation::new(
+                cleared_lines,
+                self.board.width(),
+                timestamp,
+                ANIMATION_DURATION_LINE_CLEAR,
+            );
+            self.animations.push(Box::new(anim));
+        }
+
+        self.place_new_piece();
+    }
+
+    fn handle_input_misc(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
         if controller.is_triggered(INPUT_STOP_GAME) {
             self.board.clear();
             return Some(Box::new(GameTitle::new(self.board.width(), self.board.height())));
@@ -109,120 +207,59 @@ impl GameRunning {
         None
     }
 
-    fn input_drop(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_drop(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
         if controller.is_triggered(INPUT_HARD_DROP) {
-            let piece = &self.pieces[self.active_piece.index];
-
-            let drop_pos = self.board.find_drop_position(piece, &self.active_piece.position, self.active_piece.rotation);
-            self.board.put_piece(piece, &drop_pos, self.active_piece.rotation);
-
-            if drop_pos != self.active_piece.position {
-                let points = piece.iter_coords(self.active_piece.rotation)
-                    .map(|(x, y)| { (x + drop_pos.x as usize, y) })
-                    .collect::<Vec<_>>();
-
-                let anim = gfx::WhooshAnimation::new(
-                    points,
-                    self.active_piece.position.y,
-                    drop_pos.y,
-                    piece.color.clone(),
-                    timestamp,
-                    ANIMATION_DURATION_HARD_DROP);
-
-                self.animations.push(Box::new(anim));
-            }
-
-            let cleared_lines = self.board.clear_lines();
-            if !cleared_lines.is_empty() {
-                let anim = gfx::LineClearAnimation::new(
-                    cleared_lines,
-                    self.board.width(),
-                    timestamp,
-                    ANIMATION_DURATION_LINE_CLEAR,
-                );
-                self.animations.push(Box::new(anim));
-            }
-
-            self.place_new_piece();
+            self.hard_drop_piece(timestamp);
         }
 
         None
     }
 
-    fn input_move(&mut self, controller: &input::Controller) -> Option<Box<dyn GameState>> {
-        let piece = &self.pieces[self.active_piece.index];
-
+    fn handle_input_move(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
         let ts_left = controller.get_button_pressed_timestamp(INPUT_MOVE_LEFT);
         let ts_right = controller.get_button_pressed_timestamp(INPUT_MOVE_RIGHT);
 
         let is_left = controller.is_triggered_or_repeat(INPUT_MOVE_LEFT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
         let is_right = controller.is_triggered_or_repeat(INPUT_MOVE_RIGHT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
 
-        let offset = {
-            if ts_left > ts_right {
-                if is_left { -1 } else { 0 }
-            } else if ts_right > ts_left {
-                if is_right { 1 } else { 0 }
-            } else {
-                0
+        if ts_left > ts_right {
+            if is_left {
+                self.move_piece_x(-1)
             }
-        };
-
-        if offset != 0 {
-            let new_position = self.active_piece.position.add_x(offset);
-            if !self.board.collides(piece, &new_position, self.active_piece.rotation) {
-                self.active_piece.position = new_position;
+        } else if ts_right > ts_left {
+            if is_right {
+                self.move_piece_x(1)
             }
         }
 
         let is_soft_drop = controller.is_triggered_or_repeat(INPUT_SOFT_DROP, INITIAL_DELAY_SOFT_DROP, REPEAT_DELAY_SOFT_DROP);
+        if is_soft_drop {
+            self.move_piece_y(1);
+        }
 
-        let offset = {
-            if is_soft_drop {
-                1
-            } else {
-                0
-            }
-        };
 
-        if offset != 0 {
-            let new_position = self.active_piece.position.add_y(offset);
-            if !self.board.collides(piece, &new_position, self.active_piece.rotation) {
-                self.active_piece.position = new_position;
-            }
+        None
+    }
+
+    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+        let is_cw = controller.is_triggered(INPUT_ROTATE_CW);
+        let is_ccw = controller.is_triggered(INPUT_ROTATE_CCW);
+
+        if is_cw && !is_ccw {
+            self.rotate_piece(1);
+        } else if is_ccw && !is_cw {
+            self.rotate_piece(-1);
         }
 
         None
     }
 
-    fn input_rotate(&mut self, controller: &input::Controller) -> Option<Box<dyn GameState>> {
-        let piece = &self.pieces[self.active_piece.index];
-
-        let is_cw = controller.is_triggered(INPUT_ROTATE_CW);
-        let is_ccw = controller.is_triggered(INPUT_ROTATE_CCW);
-
-        let maybe_value = {
-            if is_cw && !is_ccw {
-                Some(self.active_piece.rotation.wrapping_add(1))
-            } else if is_ccw && !is_cw {
-                Some(self.active_piece.rotation.wrapping_sub(1))
-            } else {
-                None
-            }
-        };
-
-        if let Some(value) = maybe_value {
-            for y in 0..2 {
-                let pos = self.active_piece.position.add_y(y);
-                if !self.board.collides(piece, &pos, value) {
-                    self.active_piece.position = pos;
-                    self.active_piece.rotation = value;
-                    break;
-                }
-            }
-        }
-
+    fn handle_input(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
         None
+            .or_else(|| { self.handle_input_misc(timestamp, &controller) })
+            .or_else(|| { self.handle_input_drop(timestamp, &controller) })
+            .or_else(|| { self.handle_input_move(timestamp, &controller) })
+            .or_else(|| { self.handle_input_rotate(timestamp, &controller) })
     }
 }
 
@@ -237,13 +274,7 @@ impl GameState for GameRunning {
             return None;
         }
 
-        let new_state = None
-            .or_else(|| { self.input_misc(controller) })
-            .or_else(|| { self.input_drop(timestamp, controller) })
-            .or_else(|| { self.input_move(controller) })
-            .or_else(|| { self.input_rotate(controller) })
-            ;
-
+        let new_state = self.handle_input(timestamp, controller);
         if new_state.is_some() {
             return new_state;
         }
@@ -270,10 +301,7 @@ impl Game {
         Self {
             frame_index: 0,
             controller: input::Controller::new(),
-            game_state: Box::new(GameTitle {
-                board_width: board_width,
-                board_height: board_height,
-            }),
+            game_state: Box::new(GameTitle::new(board_width, board_height)),
         }
     }
 
