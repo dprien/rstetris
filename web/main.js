@@ -88,7 +88,7 @@ function register_object(wasm_module, wasm_instance) {
     };
 }
 
-function main() {
+(function () {
     let shims = null;
     const importObject = {
         env: {
@@ -103,6 +103,4 @@ function main() {
             shims = register_object(result.module, result.instance);
         })
         .catch(error => console.log("Error loading WASM module: " + error));
-}
-
-main();
+})();
