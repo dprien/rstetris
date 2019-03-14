@@ -84,12 +84,9 @@ impl GameState for GameTitle {
             return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
         }
 
-        for (_, (start, end)) in controller.touch_input.swipes(TOUCH_SWIPE_DISTANCE_THRESHOLD) {
-            let dx = end.position.x - start.position.x;
-            let dy = end.position.y - start.position.y;
-            if dy < 0 && dy.abs() > dx.abs() && dx.abs() < BLOCK_SIZE_PX / 2 {
-                return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
-            }
+        let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
+        if num_swipes > 0 {
+            return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
         }
 
         None
@@ -239,13 +236,9 @@ impl GameRunning {
             self.hard_drop_piece(timestamp);
         }
 
-        for (_, (start, end)) in controller.touch_input.swipes(TOUCH_SWIPE_DISTANCE_THRESHOLD) {
-            let dx = end.position.x - start.position.x;
-            let dy = end.position.y - start.position.y;
-            if dy < 0 && dy.abs() > dx.abs() && dx.abs() < BLOCK_SIZE_PX {
-                self.hard_drop_piece(timestamp);
-                break;
-            }
+        let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
+        if num_swipes > 0 {
+            self.hard_drop_piece(timestamp);
         }
 
         None
@@ -296,7 +289,8 @@ impl GameRunning {
             self.rotate_piece(-1);
         }
 
-        for _ in controller.touch_input.taps(TOUCH_TAP_DISTANCE_THRESHOLD, TOUCH_TAP_PERIOD_THRESHOLD) {
+        let num_taps = controller.touch_input.taps(TOUCH_TAP_DISTANCE_THRESHOLD, TOUCH_TAP_PERIOD_THRESHOLD).count();
+        if num_taps > 0 {
             self.rotate_piece(1);
         }
 

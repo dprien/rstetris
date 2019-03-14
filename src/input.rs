@@ -162,6 +162,39 @@ impl TouchInput {
         })
     }
 
+    fn swipes_filter<F>(&self, min_distance: f64, mut f: F) -> impl Iterator<Item = (&i32, &(Touch, Touch))>
+        where F: FnMut(i32, i32) -> bool
+    {
+        self.swipes(min_distance)
+            .filter(move |(_, (start, end))| {
+                f(end.position.x - start.position.x, end.position.y - start.position.y)
+            })
+    }
+
+    pub fn swipes_left(&self, min_distance: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.swipes_filter(min_distance, move |dx, dy| {
+            dx < 0 && dx.abs() > dy.abs() && dy.abs() < (min_distance / 2.0) as i32
+        })
+    }
+
+    pub fn swipes_right(&self, min_distance: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.swipes_filter(min_distance, move |dx, dy| {
+            dx > 0 && dx.abs() > dy.abs() && dy.abs() < (min_distance / 2.0) as i32
+        })
+    }
+
+    pub fn swipes_up(&self, min_distance: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.swipes_filter(min_distance, move |dx, dy| {
+            dy < 0 && dy.abs() > dx.abs() && dx.abs() < (min_distance / 2.0) as i32
+        })
+    }
+
+    pub fn swipes_down(&self, min_distance: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.swipes_filter(min_distance, move |dx, dy| {
+            dy > 0 && dy.abs() > dx.abs() && dx.abs() < (min_distance / 2.0) as i32
+        })
+    }
+
     pub fn taps(&self, max_distance: f64, max_period: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
         self.finished.iter().filter(move |(_, (start, end))| {
             Self::is_tap(start, end, max_distance, max_period)
