@@ -1,5 +1,7 @@
 use crate::{input, gfx, piece, board, util, js_api};
 
+const BLOCK_SIZE_PX: i32 = 40;
+
 const INPUT_GAME_START: (usize, usize) = (0, 32);
 const INPUT_STOP_GAME: (usize, usize) = (0, 27);
 
@@ -21,9 +23,17 @@ const REPEAT_DELAY_MOVE: f64 = 1000.0 / 60.0 * 3.0;
 const ANIMATION_DURATION_HARD_DROP: f64 = 300.0;
 const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
 
+const TOUCH_SWIPE_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 * 2.0;
+const TOUCH_TAP_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 / 2.0;
+const TOUCH_TAP_PERIOD_THRESHOLD: f64 = 500.0;
 
 trait GameState {
-    fn tick(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>>;
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>>;
+}
+
+struct Controller {
+    button_input: input::ButtonInput,
+    touch_input: input::TouchInput,
 }
 
 struct GameTitle {
@@ -46,8 +56,17 @@ struct GameRunning {
 
 struct Game {
     frame_index: u64,
-    controller: input::ButtonInput,
+    controller: Controller,
     game_state: Box<dyn GameState>,
+}
+
+impl Controller {
+    fn new() -> Self {
+        Self {
+            button_input: input::ButtonInput::new(),
+            touch_input: input::TouchInput::new(),
+        }
+    }
 }
 
 impl GameTitle {
@@ -60,9 +79,17 @@ impl GameTitle {
 }
 
 impl GameState for GameTitle {
-    fn tick(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
-        if controller.is_triggered(INPUT_GAME_START) {
+    fn tick(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+        if controller.button_input.is_triggered(INPUT_GAME_START) {
             return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
+        }
+
+        for (_, (start, end)) in controller.touch_input.swipes(TOUCH_SWIPE_DISTANCE_THRESHOLD) {
+            let dx = end.position.x - start.position.x;
+            let dy = end.position.y - start.position.y;
+            if dy < 0 && dy.abs() > dx.abs() && dx.abs() < BLOCK_SIZE_PX / 2 {
+                return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
+            }
         }
 
         None
@@ -198,8 +225,8 @@ impl GameRunning {
         self.place_new_piece();
     }
 
-    fn handle_input_misc(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
-        if controller.is_triggered(INPUT_STOP_GAME) {
+    fn handle_input_misc(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+        if controller.button_input.is_triggered(INPUT_STOP_GAME) {
             self.board.clear();
             return Some(Box::new(GameTitle::new(self.board.width(), self.board.height())));
         }
@@ -207,20 +234,29 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_drop(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
-        if controller.is_triggered(INPUT_HARD_DROP) {
+    fn handle_input_drop(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+        if controller.button_input.is_triggered(INPUT_HARD_DROP) {
             self.hard_drop_piece(timestamp);
+        }
+
+        for (_, (start, end)) in controller.touch_input.swipes(TOUCH_SWIPE_DISTANCE_THRESHOLD) {
+            let dx = end.position.x - start.position.x;
+            let dy = end.position.y - start.position.y;
+            if dy < 0 && dy.abs() > dx.abs() && dx.abs() < BLOCK_SIZE_PX {
+                self.hard_drop_piece(timestamp);
+                break;
+            }
         }
 
         None
     }
 
-    fn handle_input_move(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
-        let ts_left = controller.get_button_press_timestamp(INPUT_MOVE_LEFT);
-        let ts_right = controller.get_button_press_timestamp(INPUT_MOVE_RIGHT);
+    fn handle_input_move(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+        let ts_left = controller.button_input.get_button_press_timestamp(INPUT_MOVE_LEFT);
+        let ts_right = controller.button_input.get_button_press_timestamp(INPUT_MOVE_RIGHT);
 
-        let is_left = controller.is_triggered_or_repeat(INPUT_MOVE_LEFT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
-        let is_right = controller.is_triggered_or_repeat(INPUT_MOVE_RIGHT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
+        let is_left = controller.button_input.is_triggered_or_repeat(INPUT_MOVE_LEFT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
+        let is_right = controller.button_input.is_triggered_or_repeat(INPUT_MOVE_RIGHT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
 
         if ts_left > ts_right {
             if is_left {
@@ -232,18 +268,27 @@ impl GameRunning {
             }
         }
 
-        let is_soft_drop = controller.is_triggered_or_repeat(INPUT_SOFT_DROP, INITIAL_DELAY_SOFT_DROP, REPEAT_DELAY_SOFT_DROP);
+        let is_soft_drop = controller.button_input.is_triggered_or_repeat(INPUT_SOFT_DROP, INITIAL_DELAY_SOFT_DROP, REPEAT_DELAY_SOFT_DROP);
         if is_soft_drop {
             self.move_piece_y(1);
         }
 
+        for (_, (start, prev, curr)) in controller.touch_input.motions() {
+            let x_offset = ((curr.position.x - start.position.x) / BLOCK_SIZE_PX) - ((prev.position.x - start.position.x) / BLOCK_SIZE_PX);
+            let y_offset = ((curr.position.y - start.position.y) / BLOCK_SIZE_PX) - ((prev.position.y - start.position.y) / BLOCK_SIZE_PX);
+
+            if x_offset != 0 || y_offset != 0 {
+                self.move_piece_x(x_offset);
+                self.move_piece_y(y_offset);
+            }
+        }
 
         None
     }
 
-    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
-        let is_cw = controller.is_triggered(INPUT_ROTATE_CW);
-        let is_ccw = controller.is_triggered(INPUT_ROTATE_CCW);
+    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
+        let is_cw = controller.button_input.is_triggered(INPUT_ROTATE_CW);
+        let is_ccw = controller.button_input.is_triggered(INPUT_ROTATE_CCW);
 
         if is_cw && !is_ccw {
             self.rotate_piece(1);
@@ -251,10 +296,14 @@ impl GameRunning {
             self.rotate_piece(-1);
         }
 
+        for _ in controller.touch_input.taps(TOUCH_TAP_DISTANCE_THRESHOLD, TOUCH_TAP_PERIOD_THRESHOLD) {
+            self.rotate_piece(1);
+        }
+
         None
     }
 
-    fn handle_input(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
+    fn handle_input(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
         None
             .or_else(|| { self.handle_input_misc(timestamp, &controller) })
             .or_else(|| { self.handle_input_drop(timestamp, &controller) })
@@ -264,7 +313,7 @@ impl GameRunning {
 }
 
 impl GameState for GameRunning {
-    fn tick(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn GameState>> {
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
                 x.tick(timestamp);
@@ -300,17 +349,33 @@ impl Game {
     fn new(board_width: usize, board_height: usize) -> Self {
         Self {
             frame_index: 0,
-            controller: input::ButtonInput::new(),
+            controller: Controller::new(),
             game_state: Box::new(GameTitle::new(board_width, board_height)),
         }
     }
 
     fn key_handler(&mut self, key_code: i32, state: i32) {
         if state != 0 {
-            self.controller.button_press((0, key_code as usize));
+            self.controller.button_input.button_press((0, key_code as usize));
         } else {
-            self.controller.button_release((0, key_code as usize));
+            self.controller.button_input.button_release((0, key_code as usize));
         }
+    }
+
+    fn touch_start_handler(&mut self, touch_id: i32, x: i32, y: i32) {
+        self.controller.touch_input.touch_start(touch_id, x, y);
+    }
+
+    fn touch_end_handler(&mut self, touch_id: i32, x: i32, y: i32) {
+        self.controller.touch_input.touch_end(touch_id, x, y);
+    }
+
+    fn touch_cancel_handler(&mut self, touch_id: i32, x: i32, y: i32) {
+        self.controller.touch_input.touch_cancel(touch_id, x, y);
+    }
+
+    fn touch_move_handler(&mut self, touch_id: i32, x: i32, y: i32) {
+        self.controller.touch_input.touch_move(touch_id, x, y);
     }
 
     fn tick(&mut self, timestamp: f64) {
@@ -318,7 +383,9 @@ impl Game {
             self.game_state = new_state;
         }
 
-        self.controller.update(timestamp);
+        self.controller.button_input.update(timestamp);
+        self.controller.touch_input.update(timestamp);
+
         self.frame_index += 1;
     }
 }
@@ -330,10 +397,30 @@ pub extern fn Game_new(board_width: usize, board_height: usize) -> u32 {
 
 #[no_mangle]
 pub extern fn Game_key_handler(address: u32, key_code: i32, state: i32) {
-    util::with_address_as_mut(address, |x: &mut Game| { x.key_handler(key_code, state) })
+    util::with_address_as_mut(address, |o: &mut Game| { o.key_handler(key_code, state) })
+}
+
+#[no_mangle]
+pub extern fn Game_touch_start_handler(address: u32, touch_id: i32, x: i32, y: i32) {
+    util::with_address_as_mut(address, |o: &mut Game| { o.touch_start_handler(touch_id, x, y) })
+}
+
+#[no_mangle]
+pub extern fn Game_touch_end_handler(address: u32, touch_id: i32, x: i32, y: i32) {
+    util::with_address_as_mut(address, |o: &mut Game| { o.touch_end_handler(touch_id, x, y) })
+}
+
+#[no_mangle]
+pub extern fn Game_touch_cancel_handler(address: u32, touch_id: i32, x: i32, y: i32) {
+    util::with_address_as_mut(address, |o: &mut Game| { o.touch_cancel_handler(touch_id, x, y) })
+}
+
+#[no_mangle]
+pub extern fn Game_touch_move_handler(address: u32, touch_id: i32, x: i32, y: i32) {
+    util::with_address_as_mut(address, |o: &mut Game| { o.touch_move_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_tick(address: u32, timestamp: f64) {
-    util::with_address_as_mut(address, |x: &mut Game| { x.tick(timestamp) })
+    util::with_address_as_mut(address, |o: &mut Game| { o.tick(timestamp) })
 }

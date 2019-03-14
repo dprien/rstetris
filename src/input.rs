@@ -1,11 +1,27 @@
 use std::collections::{HashMap};
 
+use crate::{util};
+
 pub struct ButtonInput {
     timestamp_curr: f64,
     timestamp_prev: f64,
 
     state_curr: HashMap<(usize, usize), f64>,
     state_prev: HashMap<(usize, usize), f64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Touch {
+    pub position: util::Position,
+    pub timestamp: f64,
+}
+
+pub struct TouchInput {
+    timestamp: f64,
+    finished: HashMap<i32, (Touch, Touch)>,
+
+    active_curr: HashMap<i32, (Touch, Touch)>,
+    active_prev: HashMap<i32, (Touch, Touch)>,
 }
 
 impl ButtonInput {
@@ -71,5 +87,93 @@ impl ButtonInput {
         }
 
         false
+    }
+}
+
+impl Touch {
+    fn new(position: util::Position, timestamp: f64) -> Self {
+        Self {
+            position: position,
+            timestamp: timestamp,
+        }
+    }
+}
+
+impl TouchInput {
+    pub fn new() -> Self {
+        Self {
+            timestamp: 0.0,
+            finished: HashMap::new(),
+
+            active_curr: HashMap::new(),
+            active_prev: HashMap::new(),
+        }
+    }
+
+    fn get_distance(start: &Touch, end: &Touch) -> f64 {
+        let (p1, p2) = (start.position, end.position);
+        let (dx, dy) = (p2.x - p1.x, p2.y - p1.y);
+        ((dx * dx + dy * dy) as f64).sqrt()
+    }
+
+    fn is_swipe(start: &Touch, end: &Touch, min_distance: f64) -> bool {
+        Self::get_distance(&start, &end) >= min_distance
+    }
+
+    fn is_tap(start: &Touch, end: &Touch, max_distance: f64, max_period: f64) -> bool {
+        let distance = Self::get_distance(&start, &end);
+        let period = end.timestamp - start.timestamp;
+        distance < max_distance && period < max_period
+    }
+
+    pub fn update(&mut self, timestamp: f64) {
+        self.timestamp = timestamp;
+        self.finished.clear();
+
+        self.active_prev = self.active_curr.clone();
+    }
+
+    pub fn touch_start(&mut self, touch_id: i32, x: i32, y: i32) {
+        let touch = Touch::new(util::Position::new(x, y), self.timestamp);
+        self.active_curr.insert(touch_id, (touch.clone(), touch));
+    }
+
+    pub fn touch_end(&mut self, touch_id: i32, x: i32, y: i32) {
+        if let Some((start, _)) = self.active_curr.remove(&touch_id) {
+            let end = Touch::new(util::Position::new(x, y), self.timestamp);
+            self.finished.insert(touch_id, (start, end));
+        }
+    }
+
+    pub fn touch_cancel(&mut self, touch_id: i32, _: i32, _: i32) {
+        self.active_curr.remove(&touch_id);
+    }
+
+    pub fn touch_move(&mut self, touch_id: i32, x: i32, y: i32) {
+        if let Some((_, end)) = self.active_curr.get_mut(&touch_id) {
+            end.position = util::Position::new(x, y);
+            end.timestamp = self.timestamp;
+        }
+    }
+
+    pub fn swipes(&self, min_distance: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.finished.iter().filter(move |(_, (start, end))| {
+            Self::is_swipe(start, end, min_distance)
+        })
+    }
+
+    pub fn taps(&self, max_distance: f64, max_period: f64) -> impl Iterator<Item = (&i32, &(Touch, Touch))> {
+        self.finished.iter().filter(move |(_, (start, end))| {
+            Self::is_tap(start, end, max_distance, max_period)
+        })
+    }
+
+    pub fn motions(&self) -> impl Iterator<Item = (&i32, (&Touch, &Touch, &Touch))> {
+        self.active_curr.iter()
+            .filter_map(move |(touch_id, (start, end_curr))| {
+                self.active_prev.get(touch_id).map(|(_, end_prev)| {
+                    (touch_id, (start, end_prev, end_curr))
+                })
+            })
     }
 }
