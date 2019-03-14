@@ -1,7 +1,6 @@
-use std::fmt;
 use std::cell::{RefCell};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
@@ -27,12 +26,6 @@ impl Position {
             x: self.x,
             y: self.y.saturating_add(offset),
         }
-    }
-}
-
-impl fmt::Debug for Position {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "(x={:0.2},y={:0.2})", self.x, self.y)
     }
 }
 
