@@ -1,6 +1,6 @@
 use std::{cmp, fmt};
 
-use crate::{util, js_api};
+use crate::{gfx, util, js_api};
 
 struct BlockMatrix {
     stride: usize,
@@ -9,7 +9,7 @@ struct BlockMatrix {
 
 pub struct Piece {
     pub name: String,
-    pub color: u32,
+    pub color: gfx::Color,
     rotations: [BlockMatrix; 4],
 }
 
@@ -76,7 +76,7 @@ impl fmt::Debug for BlockMatrix {
 
 
 impl Piece {
-    fn new<E, T, S>(name: S, color: u32, data: T) -> Self
+    fn new<E, T, S>(name: S, color: gfx::Color, data: T) -> Self
         where E: AsRef<[u8]>,
               T: AsRef<[E]>,
               S: Into<String>,
@@ -115,21 +115,13 @@ impl Piece {
         v.iter_coords()
     }
 
-    pub fn draw(&self, position: &util::Position, rotation: usize, intensity: f32) {
-        let r = ((self.color >> 16) & 0xff) as f32 * intensity;
-        let g = ((self.color >>  8) & 0xff) as f32 * intensity;
-        let b = ((self.color      ) & 0xff) as f32 * intensity;
-
-        let ir = r.round() as u32;
-        let ig = g.round() as u32;
-        let ib = b.round() as u32;
-
-        let color = ir << 16 | ig << 8 | ib;
+    pub fn draw(&self, position: &util::Position, rotation: usize, intensity: f64) {
+        let color = self.color.fade(intensity);
 
         for (bx, by) in self.iter_coords(rotation) {
             let dx = position.x + (bx as i32);
             let dy = position.y + (by as i32);
-            js_api::draw_block(dx as u32, dy as u32, color);
+            js_api::draw_block(dx as u32, dy as u32, color.to_argb32());
         }
     }
 }
@@ -137,37 +129,37 @@ impl Piece {
 #[allow(dead_code)]
 pub fn make_standard() -> Vec<Piece> {
     vec![
-        Piece::new("I", 0x00ffff, [
+        Piece::new("I", gfx::Color::from_argb32(0x00ffff), [
                    [0, 0, 0, 0],
                    [1, 1, 1, 1],
                    [0, 0, 0, 0],
                    [0, 0, 0, 0],
         ]),
-        Piece::new("O", 0xffff00, [
+        Piece::new("O", gfx::Color::from_argb32(0xffff00), [
                    [1, 1],
                    [1, 1],
         ]),
-        Piece::new("J", 0x0000ff, [
+        Piece::new("J", gfx::Color::from_argb32(0x0000ff), [
                    [1, 0, 0],
                    [1, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("L", 0xffa500, [
+        Piece::new("L", gfx::Color::from_argb32(0xffa500), [
                    [0, 0, 1],
                    [1, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("S", 0x00ff00, [
+        Piece::new("S", gfx::Color::from_argb32(0x00ff00), [
                    [0, 1, 1],
                    [1, 1, 0],
                    [0, 0, 0],
         ]),
-        Piece::new("Z", 0xff0000, [
+        Piece::new("Z", gfx::Color::from_argb32(0xff0000), [
                    [1, 1, 0],
                    [0, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("T", 0xaa00ff, [
+        Piece::new("T", gfx::Color::from_argb32(0xaa00ff), [
                    [0, 1, 0],
                    [1, 1, 1],
                    [0, 0, 0],
@@ -179,39 +171,39 @@ pub fn make_standard() -> Vec<Piece> {
 pub fn make_ttc_original() -> Vec<Piece> {
     // See https://tetris.wiki/SRS#How_Guideline_SRS_Really_Works
     vec![
-        Piece::new("I", 0x00ffff, [
+        Piece::new("I", gfx::Color::from_argb32(0x00ffff), [
                    [0, 0, 0, 0, 0],
                    [0, 0, 0, 0, 0],
                    [0, 1, 1, 1, 1],
                    [0, 0, 0, 0, 0],
                    [0, 0, 0, 0, 0],
         ]),
-        Piece::new("O", 0xffff00, [
+        Piece::new("O", gfx::Color::from_argb32(0xffff00), [
                    [0, 1, 1],
                    [0, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("J", 0x0000ff, [
+        Piece::new("J", gfx::Color::from_argb32(0x0000ff), [
                    [1, 0, 0],
                    [1, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("L", 0xffa500, [
+        Piece::new("L", gfx::Color::from_argb32(0xffa500), [
                    [0, 0, 1],
                    [1, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("S", 0x00ff00, [
+        Piece::new("S", gfx::Color::from_argb32(0x00ff00), [
                    [0, 1, 1],
                    [1, 1, 0],
                    [0, 0, 0],
         ]),
-        Piece::new("Z", 0xff0000, [
+        Piece::new("Z", gfx::Color::from_argb32(0xff0000), [
                    [1, 1, 0],
                    [0, 1, 1],
                    [0, 0, 0],
         ]),
-        Piece::new("T", 0xaa00ff, [
+        Piece::new("T", gfx::Color::from_argb32(0xaa00ff), [
                    [0, 1, 0],
                    [1, 1, 1],
                    [0, 0, 0],

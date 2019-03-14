@@ -1,4 +1,4 @@
-use crate::{input, piece, board, util, js_api};
+use crate::{input, gfx, piece, board, util, js_api};
 
 const INPUT_GAME_START: (usize, usize) = (0, 32);
 const INPUT_STOP_GAME: (usize, usize) = (0, 27);
@@ -21,10 +21,6 @@ const REPEAT_DELAY_MOVE: f64 = 1000.0 / 60.0 * 3.0;
 const ANIMATION_DURATION_HARD_DROP: f64 = 300.0;
 const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
 
-trait Animation {
-    fn is_finished(&self) -> bool;
-    fn tick(&mut self, timestamp: f64);
-}
 
 trait GameState {
     fn tick(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>>;
@@ -45,107 +41,13 @@ struct GameRunning {
     pieces: Vec<piece::Piece>,
     board: board::Board,
     active_piece: ActivePiece,
-    animations: Vec<Box<dyn Animation>>,
+    animations: Vec<Box<dyn gfx::Animation>>,
 }
 
 struct Game {
     frame_index: u64,
     controller: input::Controller,
     game_state: Box<dyn GameState>,
-}
-
-struct LineClearAnimation {
-    timestamp: f64,
-    interp: util::LinearInterp,
-    rows: Vec<usize>,
-    width: usize,
-}
-
-struct WhooshAnimation {
-    timestamp: f64,
-    interp: util::LinearInterp,
-    points: Vec<(usize, usize)>,
-    y1: i32,
-    y2: i32,
-    color: u32,
-}
-
-impl LineClearAnimation {
-    fn new(rows: Vec<usize>, width: usize, timestamp: f64, duration: f64) -> Self {
-        Self {
-            timestamp: timestamp,
-            interp: util::LinearInterp::new(timestamp, timestamp + duration),
-            rows: rows,
-            width: width,
-        }
-    }
-}
-
-impl Animation for LineClearAnimation {
-    fn is_finished(&self) -> bool {
-        self.timestamp >= self.interp.end()
-    }
-
-    fn tick(&mut self, timestamp: f64) {
-        self.timestamp = timestamp;
-
-        let t = self.interp.t(self.timestamp);
-        let component = ((1.0 - t) * 255.0) as u32;
-        let color = (component << 16) | (component << 8) | component;
-
-        for &y in self.rows.iter() {
-            for x in 0..self.width {
-                js_api::draw_block(x as u32, y as u32, color);
-            }
-        }
-    }
-}
-
-impl WhooshAnimation {
-    fn new(points: Vec<(usize, usize)>, y1: i32, y2: i32, color: u32, timestamp: f64, duration: f64) -> Self {
-        Self {
-            timestamp: timestamp,
-            interp: util::LinearInterp::new(timestamp, timestamp + duration),
-            points: points,
-            y1: y1,
-            y2: y2,
-            color: color,
-        }
-    }
-
-    fn draw_points(&self, y: i32, color: u32) {
-        for &(bx, by) in self.points.iter() {
-            js_api::draw_block(bx as u32, (by as i32 + y) as u32, color);
-        }
-    }
-}
-
-impl Animation for WhooshAnimation {
-    fn is_finished(&self) -> bool {
-        self.timestamp >= self.interp.end()
-    }
-
-    fn tick(&mut self, timestamp: f64) {
-        self.timestamp = timestamp;
-
-        let t = self.interp.t(self.timestamp);
-
-        for y in self.y1..self.y2 {
-            let intensity = {
-                let y_norm = (y - self.y1 + 1) as f64 / (self.y2 - self.y1) as f64;
-                if t <= y_norm {
-                    1.0 - t / y_norm
-                } else {
-                    0.0
-                }
-            };
-
-            let color = util::color_intensity(self.color, intensity);
-            self.draw_points(y, color);
-        }
-
-        self.draw_points(self.y2, self.color);
-    }
 }
 
 impl GameTitle {
@@ -219,11 +121,11 @@ impl GameRunning {
                     .map(|(x, y)| { (x + drop_pos.x as usize, y) })
                     .collect::<Vec<_>>();
 
-                let anim = WhooshAnimation::new(
+                let anim = gfx::WhooshAnimation::new(
                     points,
                     self.active_piece.position.y,
                     drop_pos.y,
-                    piece.color,
+                    piece.color.clone(),
                     timestamp,
                     ANIMATION_DURATION_HARD_DROP);
 
@@ -232,7 +134,7 @@ impl GameRunning {
 
             let cleared_lines = self.board.clear_lines();
             if !cleared_lines.is_empty() {
-                let anim = LineClearAnimation::new(
+                let anim = gfx::LineClearAnimation::new(
                     cleared_lines,
                     self.board.width(),
                     timestamp,
@@ -330,7 +232,7 @@ impl GameState for GameRunning {
             for x in self.animations.iter_mut() {
                 x.tick(timestamp);
             }
-            self.animations.retain(|x| { !x.is_finished() });
+            self.animations.retain(|x| { x.is_active() });
 
             return None;
         }

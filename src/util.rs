@@ -1,43 +1,10 @@
 use std::fmt;
 use std::cell::{RefCell};
 
-pub struct LinearInterp {
-    start: f64,
-    end: f64,
-}
-
 #[derive(Clone, Copy, PartialEq)]
 pub struct Position {
     pub x: i32,
     pub y: i32,
-}
-
-#[allow(dead_code)]
-impl LinearInterp {
-    pub fn new(start: f64, end: f64) -> Self {
-        Self {
-            start: start,
-            end: end,
-        }
-    }
-
-    pub fn start(&self) -> f64 {
-        self.start
-    }
-
-    pub fn end(&self) -> f64 {
-        self.end
-    }
-
-    pub fn t(&self, v: f64) -> f64 {
-        let t = (v - self.start) / (self.end - self.start);
-        clamp(t, 0.0, 1.0)
-    }
-
-    pub fn value(&self, t: f64) -> f64 {
-        let value = self.start + t * (self.end - self.start);
-        clamp(value, self.start, self.end)
-    }
 }
 
 impl Position {
@@ -104,16 +71,4 @@ fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
     } else {
         v
     }
-}
-
-pub fn color_intensity(color: u32, intensity: f64) -> u32 {
-    let r = ((color >> 16) & 0xff) as f64 * intensity;
-    let g = ((color >>  8) & 0xff) as f64 * intensity;
-    let b = ((color      ) & 0xff) as f64 * intensity;
-
-    let ir = r.round() as u32;
-    let ig = g.round() as u32;
-    let ib = b.round() as u32;
-
-    ir << 16 | ig << 8 | ib
 }

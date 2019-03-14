@@ -1,11 +1,11 @@
 use std::fmt;
 
-use crate::{piece, util, js_api};
+use crate::{gfx, piece, util, js_api};
 
 pub struct Board {
     width: usize,
     height: usize,
-    data: Vec<Option<u32>>,
+    data: Vec<Option<gfx::Color>>,
 }
 
 impl Board {
@@ -17,11 +17,11 @@ impl Board {
         }
     }
 
-    fn get_block(&self, x: usize, y: usize) -> &Option<u32> {
+    fn get_block(&self, x: usize, y: usize) -> &Option<gfx::Color> {
         &self.data[y * self.width + x]
     }
 
-    fn put_block(&mut self, x: usize, y: usize, color: u32) {
+    fn put_block(&mut self, x: usize, y: usize, color: gfx::Color) {
         self.data[y * self.width + x] = Some(color);
     }
 
@@ -60,8 +60,12 @@ impl Board {
     pub fn draw(&self) {
         for by in 0..self.height {
             for bx in 0..self.width {
-                let color = self.get_block(bx, by).unwrap_or(0);
-                js_api::draw_block(bx as u32, by as u32, color);
+                let color = self.get_block(bx, by)
+                    .as_ref()
+                    .map(|x| { x.to_argb32() })
+                    .unwrap_or(0);
+
+                js_api::draw_block(bx as u32, by as u32, color)
             }
         }
     }
@@ -82,7 +86,7 @@ impl Board {
             assert!(dx >= 0 && dx < self.width as i32);
             assert!(dy >= 0 && dy < self.height as i32);
 
-            self.put_block(dx as usize, dy as usize, piece.color);
+            self.put_block(dx as usize, dy as usize, piece.color.clone());
         }
     }
 
