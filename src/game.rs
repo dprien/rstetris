@@ -23,7 +23,7 @@ const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
 
 
 trait GameState {
-    fn tick(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>>;
+    fn tick(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>>;
 }
 
 struct GameTitle {
@@ -46,7 +46,7 @@ struct GameRunning {
 
 struct Game {
     frame_index: u64,
-    controller: input::Controller,
+    controller: input::ButtonInput,
     game_state: Box<dyn GameState>,
 }
 
@@ -60,7 +60,7 @@ impl GameTitle {
 }
 
 impl GameState for GameTitle {
-    fn tick(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn tick(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         if controller.is_triggered(INPUT_GAME_START) {
             return Some(Box::new(GameRunning::new(self.board_width, self.board_height)))
         }
@@ -198,7 +198,7 @@ impl GameRunning {
         self.place_new_piece();
     }
 
-    fn handle_input_misc(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_misc(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         if controller.is_triggered(INPUT_STOP_GAME) {
             self.board.clear();
             return Some(Box::new(GameTitle::new(self.board.width(), self.board.height())));
@@ -207,7 +207,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_drop(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_drop(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         if controller.is_triggered(INPUT_HARD_DROP) {
             self.hard_drop_piece(timestamp);
         }
@@ -215,9 +215,9 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_move(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
-        let ts_left = controller.get_button_pressed_timestamp(INPUT_MOVE_LEFT);
-        let ts_right = controller.get_button_pressed_timestamp(INPUT_MOVE_RIGHT);
+    fn handle_input_move(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
+        let ts_left = controller.get_button_press_timestamp(INPUT_MOVE_LEFT);
+        let ts_right = controller.get_button_press_timestamp(INPUT_MOVE_RIGHT);
 
         let is_left = controller.is_triggered_or_repeat(INPUT_MOVE_LEFT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
         let is_right = controller.is_triggered_or_repeat(INPUT_MOVE_RIGHT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
@@ -241,7 +241,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         let is_cw = controller.is_triggered(INPUT_ROTATE_CW);
         let is_ccw = controller.is_triggered(INPUT_ROTATE_CCW);
 
@@ -254,7 +254,7 @@ impl GameRunning {
         None
     }
 
-    fn handle_input(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn handle_input(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         None
             .or_else(|| { self.handle_input_misc(timestamp, &controller) })
             .or_else(|| { self.handle_input_drop(timestamp, &controller) })
@@ -264,7 +264,7 @@ impl GameRunning {
 }
 
 impl GameState for GameRunning {
-    fn tick(&mut self, timestamp: f64, controller: &input::Controller) -> Option<Box<dyn GameState>> {
+    fn tick(&mut self, timestamp: f64, controller: &input::ButtonInput) -> Option<Box<dyn GameState>> {
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
                 x.tick(timestamp);
@@ -300,16 +300,16 @@ impl Game {
     fn new(board_width: usize, board_height: usize) -> Self {
         Self {
             frame_index: 0,
-            controller: input::Controller::new(),
+            controller: input::ButtonInput::new(),
             game_state: Box::new(GameTitle::new(board_width, board_height)),
         }
     }
 
     fn key_handler(&mut self, key_code: i32, state: i32) {
         if state != 0 {
-            self.controller.set_button_pressed((0, key_code as usize));
+            self.controller.button_press((0, key_code as usize));
         } else {
-            self.controller.set_button_released((0, key_code as usize));
+            self.controller.button_release((0, key_code as usize));
         }
     }
 
