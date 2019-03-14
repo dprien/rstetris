@@ -40,17 +40,14 @@ impl Controller {
         self.button_map_curr.get(&input_id).cloned()
     }
 
-    #[allow(dead_code)]
     pub fn is_pressed(&self, input_id: (usize, usize)) -> bool {
         self.button_map_curr.contains_key(&input_id)
     }
 
-    #[allow(dead_code)]
     pub fn is_triggered(&self, input_id: (usize, usize)) -> bool {
         self.button_map_curr.contains_key(&input_id) && !self.button_map_prev.contains_key(&input_id)
     }
 
-    #[allow(dead_code)]
     pub fn is_triggered_or_repeat(&self, input_id: (usize, usize), initial_delay: f64, repeat_delay: f64) -> bool {
         if let Some(press_timestamp) = self.get_button_pressed_timestamp(input_id) {
             if !self.button_map_prev.contains_key(&input_id) {

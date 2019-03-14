@@ -1,4 +1,5 @@
 #![deny(bare_trait_objects)]
+#![allow(dead_code)]
 
 mod input;
 mod gfx;

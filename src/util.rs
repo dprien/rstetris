@@ -47,7 +47,6 @@ pub unsafe fn address_as_refcell<'a, T>(address: u32) -> &'a RefCell<T> {
     &*ptr
 }
 
-#[allow(dead_code)]
 pub fn with_address_as_ref<T, F, R>(address: u32, f: F) -> R
     where F: FnOnce(&T) -> R
 {
@@ -55,7 +54,6 @@ pub fn with_address_as_ref<T, F, R>(address: u32, f: F) -> R
     f(&rc.borrow())
 }
 
-#[allow(dead_code)]
 pub fn with_address_as_mut<T, F, R>(address: u32, f: F) -> R
     where F: FnOnce(&mut T) -> R
 {

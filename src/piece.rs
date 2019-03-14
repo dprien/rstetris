@@ -93,7 +93,6 @@ impl Piece {
         }
     }
 
-    #[allow(dead_code)]
     pub fn bounds(&self, rotation: usize) -> ((usize, usize), (usize, usize)) {
         let mut x1 = usize::max_value();
         let mut x2 = usize::min_value();
@@ -126,7 +125,6 @@ impl Piece {
     }
 }
 
-#[allow(dead_code)]
 pub fn make_standard() -> Vec<Piece> {
     vec![
         Piece::new("I", gfx::Color::from_argb32(0x00ffff), [
@@ -167,7 +165,6 @@ pub fn make_standard() -> Vec<Piece> {
     ]
 }
 
-#[allow(dead_code)]
 pub fn make_ttc_original() -> Vec<Piece> {
     // See https://tetris.wiki/SRS#How_Guideline_SRS_Really_Works
     vec![
