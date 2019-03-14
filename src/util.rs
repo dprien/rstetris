@@ -14,6 +14,10 @@ impl Position {
         }
     }
 
+    pub fn origin() -> Self {
+        Self::new(0, 0)
+    }
+
     pub fn add_x(&self, offset: i32) -> Self {
         Self {
             x: self.x.saturating_add(offset),
