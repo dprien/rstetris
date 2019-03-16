@@ -152,11 +152,10 @@ impl Animation for WhooshAnimation {
                 }
             };
 
-            // let grey = Color::rgb(128, 128, 128);
-            // let gradient = self.color.fade(intensity);
-            // let color = grey.mix(&gradient, ease::cubic_out(t_norm));
+            let src = Color::rgb(223, 223, 223);
+            let dst = self.color.fade(intensity);
+            let color = src.mix(&dst, ease::cubic_out(t_norm));
 
-            let color = self.color.fade(intensity);
             self.draw_points(y, &color);
         }
 
