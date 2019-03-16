@@ -1,4 +1,4 @@
-use crate::{input, gfx, piece, board, util, js_api};
+use crate::{input, gfx, piece, board, util};
 
 const BLOCK_SIZE_PX: i32 = 40;
 
