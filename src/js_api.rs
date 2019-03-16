@@ -4,6 +4,9 @@ extern {
 
     #[link_name = "draw_block"]
     fn _js_draw_block(x: u32, y: u32, color: u32);
+
+    #[link_name = "random"]
+    fn _js_random() -> f64;
 }
 
 #[allow(dead_code)]
@@ -18,4 +21,8 @@ pub fn console_log<T>(s: T)
 #[allow(dead_code)]
 pub fn draw_block(x: u32, y: u32, color: u32) {
     unsafe { _js_draw_block(x, y, color) };
+}
+
+pub fn random() -> f64 {
+    unsafe { _js_random() }
 }

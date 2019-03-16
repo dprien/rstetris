@@ -80,11 +80,16 @@ function register_object(wasm_module, wasm_instance) {
         console.log(s);
     };
 
+    const random = () => {
+        return Math.random();
+    };
+
     requestAnimationFrame(tick);
 
     return {
         console_log: console_log,
         draw_block: draw_block,
+        random: random,
     };
 }
 
@@ -92,8 +97,9 @@ function register_object(wasm_module, wasm_instance) {
     let shims = null;
     const importObject = {
         env: {
-            console_log: function () { shims.console_log.apply(this, arguments); },
-            draw_block: function () { shims.draw_block.apply(this, arguments); },
+            console_log: function () { return shims.console_log.apply(this, arguments); },
+            draw_block: function () { return shims.draw_block.apply(this, arguments); },
+            random: function () { return shims.random.apply(this, arguments); },
         }
     };
 

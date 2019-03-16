@@ -1,4 +1,5 @@
 use std::{cmp, fmt};
+use std::collections::vec_deque::VecDeque;
 
 use crate::{gfx, util, js_api};
 
@@ -11,6 +12,11 @@ pub struct Piece {
     pub name: String,
     pub color: gfx::Color,
     rotations: [BlockMatrix; 4],
+}
+
+pub struct Bag {
+    pieces: Vec<Piece>,
+    indices: VecDeque<usize>,
 }
 
 impl BlockMatrix {
@@ -122,6 +128,38 @@ impl Piece {
             let dy = position.y + (by as i32);
             js_api::draw_block(dx as u32, dy as u32, color.to_argb32());
         }
+    }
+}
+
+impl Bag {
+    pub fn new(pieces: Vec<Piece>) -> Self {
+        let mut obj = Self { pieces, indices: VecDeque::new() };
+        obj.fill();
+
+        obj
+    }
+
+    fn fill(&mut self) {
+        if self.indices.len() < self.pieces.len() {
+            let old_len = self.indices.len();
+            self.indices.extend(0..self.pieces.len());
+            util::shuffle(old_len, self.indices.len(), &mut self.indices);
+        }
+    }
+
+    pub fn pieces(&self) -> &[Piece] {
+        &self.pieces
+    }
+
+    pub fn current(&self) -> &Piece {
+        self.indices.front()
+            .map(|&index| { &self.pieces[index] })
+            .unwrap()
+    }
+
+    pub fn advance(&mut self) {
+        self.indices.pop_front();
+        self.fill();
     }
 }
 

@@ -36,21 +36,16 @@ struct Controller {
     touch_input: input::TouchInput,
 }
 
-struct ActivePiece {
-    index: usize,
-    position: util::Position,
-    rotation: usize,
-}
-
 struct TitleState {
     board_width: usize,
     board_height: usize,
 }
 
 struct RunningState {
-    pieces: Vec<piece::Piece>,
+    bag: piece::Bag,
     board: board::Board,
-    active_piece: ActivePiece,
+    position: util::Position,
+    rotation: usize,
     animations: Vec<Box<dyn gfx::Animation>>,
 }
 
@@ -95,33 +90,33 @@ impl State for TitleState {
 
 impl RunningState {
     fn new(board_width: usize, board_height: usize) -> Self {
-        let pieces = piece::make_standard();
         let board = board::Board::new(board_width, board_height);
-
-        let index = 0;
+        let bag = piece::Bag::new(piece::make_standard());
         let rotation = 0;
-        let position = board.initial_position(&pieces[index], rotation);
+        let position = board.initial_position(bag.current(), rotation);
 
         Self {
-            board: board,
-            pieces: pieces,
-
-            active_piece: ActivePiece {
-                index: index,
-                position: position,
-                rotation: rotation,
-            },
-
-            animations: Vec::new(),
+            board,
+            bag,
+            position,
+            rotation,
+            animations: Vec::new()
         }
     }
 
-    fn place_new_piece(&mut self) {
-        self.active_piece.index = (self.active_piece.index + 1) % self.pieces.len();
-        self.active_piece.rotation = 0;
+    fn place_new_piece(&mut self) -> bool {
+        self.bag.advance();
 
-        let piece = &self.pieces[self.active_piece.index];
-        self.active_piece.position = self.board.initial_position(piece, self.active_piece.rotation);
+        let rotation = 0;
+        let position = self.board.initial_position(self.bag.current(), rotation);
+
+        if self.board.collides(self.bag.current(), &position, rotation) {
+            false
+        } else {
+            self.rotation = rotation;
+            self.position = position;
+            true
+        }
     }
 
     fn move_piece_x(&mut self, offset: i32) {
@@ -135,13 +130,13 @@ impl RunningState {
             }
         };
 
-        let piece = &self.pieces[self.active_piece.index];
+        let piece = self.bag.current();
         for _ in 0..offset.abs() {
-            let new_position = self.active_piece.position.add_x(step);
-            if self.board.collides(piece, &new_position, self.active_piece.rotation) {
+            let new_position = self.position.add_x(step);
+            if self.board.collides(piece, &new_position, self.rotation) {
                 break;
             }
-            self.active_piece.position = new_position;
+            self.position = new_position;
         }
     }
 
@@ -150,13 +145,13 @@ impl RunningState {
             return;
         }
 
-        let piece = &self.pieces[self.active_piece.index];
+        let piece = self.bag.current();
         for _ in 0..offset.abs() {
-            let new_position = self.active_piece.position.add_y(1);
-            if self.board.collides(piece, &new_position, self.active_piece.rotation) {
+            let new_position = self.position.add_y(1);
+            if self.board.collides(piece, &new_position, self.rotation) {
                 break;
             }
-            self.active_piece.position = new_position;
+            self.position = new_position;
         }
     }
 
@@ -165,21 +160,21 @@ impl RunningState {
             return;
         }
 
-        let piece = &self.pieces[self.active_piece.index];
+        let piece = self.bag.current();
         for _ in 0..offset.abs() {
             let new_rotation = {
                 if offset > 0 {
-                    self.active_piece.rotation.wrapping_add(1)
+                    self.rotation.wrapping_add(1)
                 } else {
-                    self.active_piece.rotation.wrapping_sub(1)
+                    self.rotation.wrapping_sub(1)
                 }
             };
 
             for y in 0..2 {
-                let pos = self.active_piece.position.add_y(y);
+                let pos = self.position.add_y(y);
                 if !self.board.collides(piece, &pos, new_rotation) {
-                    self.active_piece.position = pos;
-                    self.active_piece.rotation = new_rotation;
+                    self.position = pos;
+                    self.rotation = new_rotation;
                     break;
                 }
             }
@@ -187,19 +182,19 @@ impl RunningState {
     }
 
     fn hard_drop_piece(&mut self, timestamp: f64) {
-        let piece = &self.pieces[self.active_piece.index];
+        let piece = self.bag.current();
 
-        let drop_pos = self.board.find_drop_position(piece, &self.active_piece.position, self.active_piece.rotation);
-        self.board.put_piece(piece, &drop_pos, self.active_piece.rotation);
+        let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
+        self.board.put_piece(piece, &drop_pos, self.rotation);
 
-        if drop_pos != self.active_piece.position {
-            let points = piece.iter_coords(self.active_piece.rotation)
+        if drop_pos != self.position {
+            let points = piece.iter_coords(self.rotation)
                 .map(|(x, y)| { (x + drop_pos.x as usize, y) })
                 .collect::<Vec<_>>();
 
             let anim = gfx::WhooshAnimation::new(
                 points,
-                self.active_piece.position.y,
+                self.position.y,
                 drop_pos.y,
                 piece.color.clone(),
                 timestamp,
@@ -329,11 +324,11 @@ impl State for RunningState {
 
         self.board.draw();
 
-        let piece = &self.pieces[self.active_piece.index];
-        let drop_pos = self.board.find_drop_position(piece, &self.active_piece.position, self.active_piece.rotation);
+        let piece = self.bag.current();
+        let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
 
-        piece.draw(&drop_pos, self.active_piece.rotation, 0.3);
-        piece.draw(&self.active_piece.position, self.active_piece.rotation, 1.0);
+        piece.draw(&drop_pos, self.rotation, 0.3);
+        piece.draw(&self.position, self.rotation, 1.0);
 
         None
     }
