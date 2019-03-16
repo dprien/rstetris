@@ -9,7 +9,6 @@ extern {
     fn _js_random() -> f64;
 }
 
-#[allow(dead_code)]
 pub fn console_log<T>(s: T)
     where T: AsRef<str>
 {
@@ -18,7 +17,6 @@ pub fn console_log<T>(s: T)
     unsafe { _js_console_log(s.as_ptr() as u32, length as u32) };
 }
 
-#[allow(dead_code)]
 pub fn draw_block(x: u32, y: u32, color: u32) {
     unsafe { _js_draw_block(x, y, color) };
 }
