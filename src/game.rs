@@ -170,12 +170,15 @@ impl RunningState {
                 }
             };
 
-            for y in 0..2 {
-                let pos = self.position.add_y(y);
-                if !self.board.collides(piece, &pos, new_rotation) {
-                    self.position = pos;
-                    self.rotation = new_rotation;
-                    break;
+            'outer:
+            for &y in &[0, 1, 2] {
+                for &x in &[0, 1, -1, 2, -2] {
+                    let pos = util::Position::new(self.position.x + x, self.position.y + y);
+                    if !self.board.collides(piece, &pos, new_rotation) {
+                        self.position = pos;
+                        self.rotation = new_rotation;
+                        break 'outer;
+                    }
                 }
             }
         }
