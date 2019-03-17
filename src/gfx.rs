@@ -209,10 +209,7 @@ impl Animation for WhooshAnimation {
                 }
             };
 
-            let src = Color::rgb(223, 223, 223);
-            let dst = self.color.fade(intensity);
-            let color = src.mix(&dst, ease::cubic_out(t_norm));
-
+            let color = self.color.fade(intensity);
             self.draw_points(y, &color);
         }
 
