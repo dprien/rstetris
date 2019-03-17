@@ -84,12 +84,23 @@ function register_object(wasm_module, wasm_instance) {
         return Math.random();
     };
 
+    const html = (id_addr, id_len, html_addr, html_len) => {
+        const id_buf = new Uint8Array(wasm_instance.exports.memory.buffer, id_addr, id_len);
+        const id = new TextDecoder().decode(id_buf);
+
+        const html_buf = new Uint8Array(wasm_instance.exports.memory.buffer, html_addr, html_len);
+        const html = new TextDecoder().decode(html_buf);
+
+        document.getElementById(id).innerHTML = html;
+    }
+
     requestAnimationFrame(tick);
 
     return {
         console_log: console_log,
         draw_block: draw_block,
         random: random,
+        html: html,
     };
 }
 
@@ -100,6 +111,7 @@ function register_object(wasm_module, wasm_instance) {
             console_log: function () { return shims.console_log.apply(this, arguments); },
             draw_block: function () { return shims.draw_block.apply(this, arguments); },
             random: function () { return shims.random.apply(this, arguments); },
+            html: function () { return shims.html.apply(this, arguments); },
         }
     };
 

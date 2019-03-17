@@ -7,6 +7,9 @@ extern {
 
     #[link_name = "random"]
     fn _js_random() -> f64;
+
+    #[link_name = "html"]
+    fn _js_html(id_address: u32, id_length: u32, html_address: u32, html_length: u32) -> f64;
 }
 
 pub fn console_log<T>(s: T)
@@ -23,4 +26,19 @@ pub fn draw_block(x: u32, y: u32, color: u32) {
 
 pub fn random() -> f64 {
     unsafe { _js_random() }
+}
+
+pub fn html<T, U>(id: T, html: U)
+    where T: AsRef<str>,
+          U: AsRef<str>
+{
+    let id = id.as_ref();
+    let id_address = id.as_ptr() as u32;
+    let id_length = id.len() as u32;
+
+    let html = html.as_ref();
+    let html_address = html.as_ptr() as u32;
+    let html_length = html.len() as u32;
+
+    unsafe { _js_html(id_address, id_length, html_address, html_length) };
 }

@@ -1,4 +1,4 @@
-use crate::{input, gfx, piece, board, util};
+use crate::{input, gfx, piece, board, util, js_api};
 
 const BLOCK_SIZE_PX: i32 = 40;
 
@@ -125,7 +125,7 @@ impl RunningState {
         }
     }
 
-    fn place_new_piece(&mut self) -> bool {
+    fn new_piece(&mut self) -> bool {
         self.bag.advance();
 
         let rotation = 0;
@@ -335,7 +335,37 @@ impl RunningState {
             .or_else(|| { self.handle_input_rotate(&controller) })
     }
 
+    fn output_stats(&self) {
+        let text = format!(
+            r#"
+            <div>
+                <strong>TIME</strong>
+                <pre>{}</pre>
+            </div>
+            <br>
+            <div>
+                <strong>SCORE</strong>
+                <pre>{}</pre>
+            </div>
+            <br>
+            <div>
+                <strong>LINES</strong>
+                <pre>{}</pre>
+            </div>
+            "#,
+            util::format_timestamp(self.timestamp_curr),
+            self.score,
+            self.num_cleared_lines,
+        );
+
+        js_api::html("stats", text);
+    }
+
     fn update(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
+        if self.frame_index % 2 == 0 {
+            self.output_stats();
+        }
+
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
                 x.tick(self.timestamp_curr);

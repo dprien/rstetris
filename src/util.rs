@@ -90,3 +90,17 @@ pub fn shuffle<E, T>(min: usize, max: usize, seq: &mut T)
         seq[j] = tmp;
     }
 }
+
+pub fn format_timestamp(timestamp: f64) -> String {
+    let hh = (timestamp / 1000.0 / 60.0 / 60.0).floor() as u64;
+    let mm = (timestamp / 1000.0 / 60.0).floor() as u64 % 60;
+    let ss = (timestamp / 1000.0).floor() as u64 % 60;
+    let cs = (timestamp / 10.0).floor() as u64 % 100;
+
+    if hh == 0 {
+        format!("{}:{:02}:{:02}", mm, ss, cs)
+    } else {
+        format!("{}:{:02}:{:02}:{:02}", hh, mm, ss, cs)
+    }
+
+}
