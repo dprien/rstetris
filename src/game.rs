@@ -462,7 +462,7 @@ impl RunningState {
         let piece = self.bag.current();
         let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
 
-        piece.draw(&drop_pos, self.rotation, 0.3);
+        piece.draw(&drop_pos, self.rotation, 0.4);
         piece.draw(&self.position, self.rotation, 1.0);
 
         None
