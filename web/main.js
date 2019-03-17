@@ -46,15 +46,15 @@ function register_object(wasm_module, wasm_instance) {
     const draw_grid = () => {
         ctx.beginPath();
 
-        ctx.strokeStyle = "#004040";
+        ctx.strokeStyle = "#001717";
         ctx.lineWidth = 2.0;
 
-        for (let x = 0; x <= BOARD_WIDTH; x++) {
+        for (let x = 1; x < BOARD_WIDTH; x++) {
             ctx.moveTo(x * BLOCK_SIZE_PX, 0);
             ctx.lineTo(x * BLOCK_SIZE_PX, BOARD_HEIGHT_PX - 1);
         }
 
-        for (let y = 0; y <= BOARD_HEIGHT; y++) {
+        for (let y = 1; y < BOARD_HEIGHT; y++) {
             ctx.moveTo(0, y * BLOCK_SIZE_PX);
             ctx.lineTo(BOARD_WIDTH_PX - 1, y * BLOCK_SIZE_PX);
         }
