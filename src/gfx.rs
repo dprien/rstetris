@@ -38,6 +38,22 @@ pub struct WhooshAnimation {
     color: Color,
 }
 
+pub struct TitleAnimation {
+    timestamp_curr: f64,
+    timestamp_prev: f64,
+
+    width: usize,
+    height: usize,
+}
+
+pub struct GameOverAnimation {
+    start: f64,
+    end: f64,
+    timestamp: f64,
+    width: usize,
+    height: usize,
+}
+
 impl Color {
     pub fn black() -> Self {
         Self::rgb(0, 0, 0)
@@ -201,5 +217,88 @@ impl Animation for WhooshAnimation {
         }
 
         self.draw_points(self.y2, &self.color);
+    }
+}
+
+impl TitleAnimation {
+    pub fn new(width: usize, height: usize, timestamp: f64) -> Self {
+        Self {
+            timestamp_curr: timestamp,
+            timestamp_prev: timestamp,
+
+            width,
+            height,
+        }
+    }
+}
+
+impl Animation for TitleAnimation {
+    fn is_active(&self) -> bool {
+        true
+    }
+
+    fn is_blocking(&self) -> bool {
+        false
+    }
+
+    fn tick(&mut self, timestamp: f64) {
+        self.timestamp_prev = self.timestamp_curr;
+        self.timestamp_curr = timestamp;
+
+        let prev = (self.timestamp_prev / 500.0).floor() as i32;
+        let curr = (self.timestamp_curr / 500.0).floor() as i32;
+
+        if curr <= prev {
+            return;
+        }
+
+        static COLORS: &[u32] = &[0x00ffff, 0xffff00, 0x0000ff, 0xffa500, 0x00ff00, 0xff0000, 0xaa00ff];
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let index = (js_api::random() * COLORS.len() as f64).floor() as usize;
+                let intensity = js_api::random();
+                let color = Color::from_argb32(COLORS[index]).fade(intensity);
+
+                js_api::draw_block(x as u32, y as i32 as u32, color.to_argb32());
+            }
+        }
+    }
+}
+
+impl GameOverAnimation {
+    pub fn new(width: usize, height: usize, timestamp: f64, duration: f64) -> Self {
+        Self {
+            start: timestamp,
+            end: timestamp + duration,
+            timestamp,
+            width,
+            height
+        }
+    }
+}
+
+impl Animation for GameOverAnimation {
+    fn is_active(&self) -> bool {
+        self.timestamp < self.end
+    }
+
+    fn is_blocking(&self) -> bool {
+        false
+    }
+
+    fn tick(&mut self, timestamp: f64) {
+        self.timestamp = timestamp;
+
+        let t_norm = (self.timestamp - self.start) / (self.end - self.start);
+        let start_y = ((1.0 - t_norm) * self.height as f64).ceil() as usize;
+
+        let color = Color::rgb(127, 127, 127).to_argb32();
+
+        for y in start_y..self.height {
+            for x in 0..self.width {
+                js_api::draw_block(x as u32, y as i32 as u32, color);
+            }
+        }
     }
 }

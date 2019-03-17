@@ -3,7 +3,7 @@ use crate::{input, gfx, piece, board, util, js_api};
 const BLOCK_SIZE_PX: i32 = 40;
 
 const INPUT_GAME_START: (usize, usize) = (0, 32);
-const INPUT_STOP_GAME: (usize, usize) = (0, 27);
+const INPUT_GAME_STOP: (usize, usize) = (0, 27);
 
 const INPUT_HARD_DROP: (usize, usize) = (0, 87);
 const INPUT_SOFT_DROP: (usize, usize) = (0, 83);
@@ -20,12 +20,13 @@ const REPEAT_DELAY_SOFT_DROP: f64 = 1000.0 / 60.0 * 4.0;
 const INITIAL_DELAY_MOVE: f64 = 1000.0 / 60.0 * 12.0;
 const REPEAT_DELAY_MOVE: f64 = 1000.0 / 60.0 * 4.0;
 
-const ANIMATION_DURATION_HARD_DROP: f64 = 200.0;
-const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
-
 const TOUCH_SWIPE_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 * 2.0;
 const TOUCH_TAP_DISTANCE_THRESHOLD: f64 = BLOCK_SIZE_PX as f64 / 2.0;
 const TOUCH_TAP_PERIOD_THRESHOLD: f64 = 500.0;
+
+const ANIMATION_DURATION_HARD_DROP: f64 = 200.0;
+const ANIMATION_DURATION_LINE_CLEAR: f64 = 600.0;
+const ANIMATION_DURATION_GAME_OVER: f64 = 2000.0;
 
 trait State {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>>;
@@ -39,6 +40,15 @@ struct Controller {
 struct TitleState {
     board_width: usize,
     board_height: usize,
+
+    animations: gfx::AnimationQueue,
+}
+
+struct GameOverState {
+    board_width: usize,
+    board_height: usize,
+
+    animations: gfx::AnimationQueue,
 }
 
 struct RunningState {
@@ -76,23 +86,79 @@ impl Controller {
 }
 
 impl TitleState {
-    fn new(_timestamp: f64, board_width: usize, board_height: usize) -> Self {
+    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+        let mut animations = gfx::AnimationQueue::new();
+        animations.add(Box::new(gfx::TitleAnimation::new(board_width, board_height, timestamp)));
+
+        for y in 0..board_height {
+            for x in 0..board_width {
+                js_api::draw_block(x as u32, y as i32 as u32, 0x000000);
+            }
+        }
+
+        js_api::html("top_bar", "<span class = \"title\">Press SPACE or swipe up to start</span>");
+        js_api::html("stats", "");
+
         Self {
-            board_width: board_width,
-            board_height: board_height,
+            board_width,
+            board_height,
+            animations,
         }
     }
 }
 
 impl State for TitleState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+        self.animations.update(timestamp);
+        if self.animations.should_block() {
+            return None;
+        }
+
         if controller.button_input.is_triggered(INPUT_GAME_START) {
-            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)));
+            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)))
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)));
+            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)))
+        }
+
+        None
+    }
+}
+
+impl GameOverState {
+    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+        let mut animations = gfx::AnimationQueue::new();
+        animations.add(Box::new(gfx::GameOverAnimation::new(board_width, board_height, timestamp, ANIMATION_DURATION_GAME_OVER)));
+
+        js_api::html("top_bar", "<span class = \"game-over\">GAME OVER</span>");
+
+        Self {
+            board_width,
+            board_height,
+            animations,
+        }
+    }
+}
+
+impl State for GameOverState {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+        self.animations.update(timestamp);
+        if self.animations.should_block() {
+            return None;
+        }
+
+        let is_start = controller.button_input.is_triggered(INPUT_GAME_START);
+        let is_stop = controller.button_input.is_triggered(INPUT_GAME_STOP);
+
+        if is_start || is_stop {
+            return Some(Box::new(TitleState::new(timestamp, self.board_width, self.board_height)));
+        }
+
+        let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
+        if num_swipes > 0 {
+            return Some(Box::new(TitleState::new(timestamp, self.board_width, self.board_height)));
         }
 
         None
@@ -101,6 +167,8 @@ impl State for TitleState {
 
 impl RunningState {
     fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+        js_api::html("top_bar", "");
+
         let board = board::Board::new(board_width, board_height);
         let bag = piece::Bag::new(piece::make_standard());
         let rotation = 0;
@@ -125,6 +193,10 @@ impl RunningState {
 
             animations: gfx::AnimationQueue::new(),
         }
+    }
+
+    fn game_over(&self) -> Box<dyn State> {
+        return Box::new(GameOverState::new(self.timestamp_curr, self.board.width(), self.board.height()));
     }
 
     fn new_piece(&mut self) -> bool {
@@ -253,9 +325,9 @@ impl RunningState {
     }
 
     fn handle_input_misc(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
-        if controller.button_input.is_triggered(INPUT_STOP_GAME) {
+        if controller.button_input.is_triggered(INPUT_GAME_STOP) {
             self.board.clear();
-            return Some(Box::new(TitleState::new(self.timestamp_curr, self.board.width(), self.board.height())));
+            return Some(self.game_over());
         }
 
         None
