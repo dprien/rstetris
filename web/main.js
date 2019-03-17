@@ -116,7 +116,8 @@ function register_object(wasm_module, wasm_instance) {
     };
 
     fetch("rstetris.wasm")
-        .then(response => WebAssembly.instantiateStreaming(response, importObject))
+        .then(response => response.arrayBuffer())
+        .then(result => WebAssembly.instantiate(result, importObject))
         .then(result => {
             shims = register_object(result.module, result.instance);
         })
