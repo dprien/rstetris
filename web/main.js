@@ -4,7 +4,7 @@ function register_object(wasm_module, wasm_instance) {
     const BOARD_WIDTH = 10;
     const BOARD_HEIGHT = 20;
 
-    const BLOCK_SIZE_PX = 40;
+    const BLOCK_SIZE_PX = 50;
 
     const BOARD_WIDTH_PX = BLOCK_SIZE_PX * BOARD_WIDTH;
     const BOARD_HEIGHT_PX = BLOCK_SIZE_PX * BOARD_HEIGHT;

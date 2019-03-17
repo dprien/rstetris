@@ -1,6 +1,6 @@
 use crate::{input, gfx, piece, board, util, js_api};
 
-const BLOCK_SIZE_PX: i32 = 40;
+const BLOCK_SIZE_PX: i32 = 50;
 
 const INPUT_GAME_START: (usize, usize) = (0, 32);
 const INPUT_GAME_STOP: (usize, usize) = (0, 27);
