@@ -58,7 +58,7 @@ struct RunningState {
     num_cleared_lines: u64,
     level: u64,
 
-    animations: Vec<Box<dyn gfx::Animation>>,
+    animations: gfx::AnimationQueue,
 }
 
 struct Game {
@@ -123,7 +123,7 @@ impl RunningState {
             num_cleared_lines: 0,
             level: 0,
 
-            animations: Vec::new(),
+            animations: gfx::AnimationQueue::new(),
         }
     }
 
@@ -157,7 +157,7 @@ impl RunningState {
                 self.timestamp_curr,
                 ANIMATION_DURATION_LINE_CLEAR,
             );
-            self.animations.push(Box::new(anim));
+            self.animations.add(Box::new(anim));
         }
 
         self.new_piece();
@@ -245,7 +245,7 @@ impl RunningState {
                 self.timestamp_curr,
                 ANIMATION_DURATION_HARD_DROP);
 
-            self.animations.push(Box::new(anim));
+            self.animations.add(Box::new(anim));
         }
 
         self.position = drop_pos;
@@ -371,12 +371,8 @@ impl RunningState {
             self.output_stats();
         }
 
-        if !self.animations.is_empty() {
-            for x in self.animations.iter_mut() {
-                x.tick(self.timestamp_curr);
-            }
-            self.animations.retain(|x| { x.is_active() });
-
+        self.animations.update(self.timestamp_curr);
+        if self.animations.should_block() {
             return None;
         }
 
@@ -385,8 +381,7 @@ impl RunningState {
             return new_state;
         }
 
-        // HACK: Skip drawing of everything else if an animation has just been added.
-        if !self.animations.is_empty() {
+        if self.animations.should_block() {
             return None;
         }
 

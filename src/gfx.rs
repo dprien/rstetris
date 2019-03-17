@@ -4,6 +4,8 @@ mod ease;
 
 pub trait Animation {
     fn is_active(&self) -> bool;
+    fn is_blocking(&self) -> bool;
+
     fn tick(&mut self, timestamp: f64);
 }
 
@@ -12,6 +14,10 @@ pub struct Color {
     r: u8,
     g: u8,
     b: u8,
+}
+
+pub struct AnimationQueue {
+    animations: Vec<Box<dyn Animation>>,
 }
 
 pub struct LineClearAnimation {
@@ -82,14 +88,41 @@ impl Color {
     }
 }
 
+impl AnimationQueue {
+    pub fn new() -> Self {
+        Self {
+            animations: Vec::new(),
+        }
+    }
+
+    pub fn should_block(&self) -> bool {
+        self.animations.iter().any(|x| { x.is_blocking() })
+    }
+
+    pub fn add(&mut self, animation: Box<dyn Animation>) {
+        self.animations.push(animation);
+    }
+
+    pub fn update(&mut self, timestamp: f64) {
+        if !self.animations.is_empty() {
+            for x in self.animations.iter_mut() {
+                x.tick(timestamp);
+            }
+
+            self.animations.retain(|x| { x.is_active() });
+        }
+    }
+}
+
+
 impl LineClearAnimation {
     pub fn new(rows: Vec<usize>, width: usize, timestamp: f64, duration: f64) -> Self {
         Self {
             start: timestamp,
             end: timestamp + duration,
-            timestamp: timestamp,
-            rows: rows,
-            width: width,
+            timestamp,
+            rows,
+            width,
         }
     }
 }
@@ -97,6 +130,10 @@ impl LineClearAnimation {
 impl Animation for LineClearAnimation {
     fn is_active(&self) -> bool {
         self.timestamp < self.end
+    }
+
+    fn is_blocking(&self) -> bool {
+        true
     }
 
     fn tick(&mut self, timestamp: f64) {
@@ -118,11 +155,11 @@ impl WhooshAnimation {
         Self {
             start: timestamp,
             end: timestamp + duration,
-            timestamp: timestamp,
-            points: points,
-            y1: y1,
-            y2: y2,
-            color: color,
+            timestamp,
+            points,
+            y1,
+            y2,
+            color,
         }
     }
 
@@ -136,6 +173,10 @@ impl WhooshAnimation {
 impl Animation for WhooshAnimation {
     fn is_active(&self) -> bool {
         self.timestamp < self.end
+    }
+
+    fn is_blocking(&self) -> bool {
+        true
     }
 
     fn tick(&mut self, timestamp: f64) {
