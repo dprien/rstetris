@@ -6,8 +6,8 @@ html, body {
 }
 
 body {
-    background-color: #000;
     color: #fff;
+    background-color: #000;
 }
 
 .outer {
@@ -21,6 +21,8 @@ body {
     height: 100vh;
 
     margin: 0 auto;
+
+    background-image: linear-gradient(to left bottom, #000000, #120009, #190117, #180523, #0a0c32);
 }
 
 .inner {
@@ -44,9 +46,52 @@ body {
     margin: 0 auto;
 
     border: 2px solid #00a0a0;
+    background-color: #000;
+}
+
+#top_bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-family: monospace;
+}
+
+#top_bar span.title {
+    color: #fff;
+    font-size: 2vh;
+    font-weight: bold;
+}
+
+#top_bar span.game-over {
+    color: #ff4000;
+    font-size: 7vh;
+    font-weight: bold;
+    font-family: monospace;
 }
 
 #stats {
     text-align: right;
-    padding-right: 1em;
+    padding-top: 1vh;
+    padding-right: 1vh;
+}
+
+#stats > div {
+    font-family: monospace;
+    margin-bottom: 2vh;
+}
+
+#stats span.name {
+    display: block;
+
+    color: #888;
+
+    font-size: 1.5vh;
+    font-weight: bold;
+}
+
+#stats span.value {
+    display: block;
+
+    font-size: 1.25vh;
 }

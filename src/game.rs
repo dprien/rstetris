@@ -43,8 +43,8 @@ struct TitleState {
 
 struct RunningState {
     timestamp_start: f64,
-    timestamp_prev: f64,
     timestamp_curr: f64,
+    timestamp_prev: f64,
 
     frame_index: u64,
 
@@ -56,6 +56,7 @@ struct RunningState {
 
     score: u64,
     num_cleared_lines: u64,
+    level: u64,
 
     animations: Vec<Box<dyn gfx::Animation>>,
 }
@@ -107,8 +108,8 @@ impl RunningState {
 
         Self {
             timestamp_start: timestamp,
-            timestamp_curr: 0.0,
-            timestamp_prev: 0.0,
+            timestamp_curr: timestamp,
+            timestamp_prev: timestamp,
 
             frame_index: 0,
 
@@ -120,6 +121,7 @@ impl RunningState {
 
             score: 0,
             num_cleared_lines: 0,
+            level: 0,
 
             animations: Vec::new(),
         }
@@ -148,8 +150,6 @@ impl RunningState {
         if !cleared_lines.is_empty() {
             self.score += 100 * (1 << (cleared_lines.len() - 1));
             self.num_cleared_lines += cleared_lines.len() as u64;
-
-            js_api::console_log(format!("Score: {}", self.score));
 
             let anim = gfx::LineClearAnimation::new(
                 cleared_lines,
@@ -339,29 +339,34 @@ impl RunningState {
         let text = format!(
             r#"
             <div>
-                <strong>TIME</strong>
-                <pre>{}</pre>
+                <span class = "name">TIME</span>
+                <span class = "value">{}</span>
             </div>
-            <br>
             <div>
-                <strong>SCORE</strong>
-                <pre>{}</pre>
+                <span class = "name">SCORE</span>
+                <span class = "value">{}</span>
             </div>
-            <br>
             <div>
-                <strong>LINES</strong>
-                <pre>{}</pre>
+                <span class = "name">LINES</span>
+                <span class = "value">{}</span>
+            </div>
+            <div>
+                <span class = "name">LEVEL</span>
+                <span class = "value">{}</span>
             </div>
             "#,
-            util::format_timestamp(self.timestamp_curr),
+            util::format_timestamp(self.timestamp_curr - self.timestamp_start),
             self.score,
             self.num_cleared_lines,
+            self.level,
         );
 
         js_api::html("stats", text);
     }
 
     fn update(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
+        self.level = 1 + ((self.timestamp_curr - self.timestamp_start) / 60000.0) as u64;
+
         if self.frame_index % 2 == 0 {
             self.output_stats();
         }
@@ -400,7 +405,7 @@ impl RunningState {
 impl State for RunningState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         self.timestamp_prev = self.timestamp_curr;
-        self.timestamp_curr = timestamp - self.timestamp_start;
+        self.timestamp_curr = timestamp;
 
         let new_state = self.update(controller);
         self.frame_index += 1;
