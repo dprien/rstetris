@@ -42,6 +42,10 @@ struct TitleState {
 }
 
 struct RunningState {
+    timestamp_start: f64,
+    timestamp_prev: f64,
+    timestamp_curr: f64,
+
     bag: piece::Bag,
     board: board::Board,
     position: util::Position,
@@ -65,7 +69,7 @@ impl Controller {
 }
 
 impl TitleState {
-    fn new(board_width: usize, board_height: usize) -> Self {
+    fn new(_timestamp: f64, board_width: usize, board_height: usize) -> Self {
         Self {
             board_width: board_width,
             board_height: board_height,
@@ -74,14 +78,14 @@ impl TitleState {
 }
 
 impl State for TitleState {
-    fn tick(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_GAME_START) {
-            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)));
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)));
         }
 
         None
@@ -89,13 +93,17 @@ impl State for TitleState {
 }
 
 impl RunningState {
-    fn new(board_width: usize, board_height: usize) -> Self {
+    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
         let board = board::Board::new(board_width, board_height);
         let bag = piece::Bag::new(piece::make_standard());
         let rotation = 0;
         let position = board.initial_position(bag.current(), rotation);
 
         Self {
+            timestamp_start: timestamp,
+            timestamp_curr: 0.0,
+            timestamp_prev: 0.0,
+
             board,
             bag,
             position,
@@ -184,7 +192,7 @@ impl RunningState {
         }
     }
 
-    fn hard_drop_piece(&mut self, timestamp: f64) {
+    fn hard_drop_piece(&mut self) {
         let piece = self.bag.current();
 
         let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
@@ -200,7 +208,7 @@ impl RunningState {
                 self.position.y,
                 drop_pos.y,
                 piece.color.clone(),
-                timestamp,
+                self.timestamp_curr,
                 ANIMATION_DURATION_HARD_DROP);
 
             self.animations.push(Box::new(anim));
@@ -211,7 +219,7 @@ impl RunningState {
             let anim = gfx::LineClearAnimation::new(
                 cleared_lines,
                 self.board.width(),
-                timestamp,
+                self.timestamp_curr,
                 ANIMATION_DURATION_LINE_CLEAR,
             );
             self.animations.push(Box::new(anim));
@@ -220,29 +228,29 @@ impl RunningState {
         self.place_new_piece();
     }
 
-    fn handle_input_misc(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn handle_input_misc(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_STOP_GAME) {
             self.board.clear();
-            return Some(Box::new(TitleState::new(self.board.width(), self.board.height())));
+            return Some(Box::new(TitleState::new(self.timestamp_curr, self.board.width(), self.board.height())));
         }
 
         None
     }
 
-    fn handle_input_drop(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn handle_input_drop(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_HARD_DROP) {
-            self.hard_drop_piece(timestamp);
+            self.hard_drop_piece();
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            self.hard_drop_piece(timestamp);
+            self.hard_drop_piece();
         }
 
         None
     }
 
-    fn handle_input_move(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn handle_input_move(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         let ts_left = controller.button_input.get_button_press_timestamp(INPUT_MOVE_LEFT);
         let ts_right = controller.button_input.get_button_press_timestamp(INPUT_MOVE_RIGHT);
 
@@ -277,7 +285,7 @@ impl RunningState {
         None
     }
 
-    fn handle_input_rotate(&mut self, _timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn handle_input_rotate(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         let is_cw = controller.button_input.is_triggered(INPUT_ROTATE_CW);
         let is_ccw = controller.button_input.is_triggered(INPUT_ROTATE_CCW);
 
@@ -295,27 +303,30 @@ impl RunningState {
         None
     }
 
-    fn handle_input(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+    fn handle_input(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         None
-            .or_else(|| { self.handle_input_misc(timestamp, &controller) })
-            .or_else(|| { self.handle_input_drop(timestamp, &controller) })
-            .or_else(|| { self.handle_input_move(timestamp, &controller) })
-            .or_else(|| { self.handle_input_rotate(timestamp, &controller) })
+            .or_else(|| { self.handle_input_misc(&controller) })
+            .or_else(|| { self.handle_input_drop(&controller) })
+            .or_else(|| { self.handle_input_move(&controller) })
+            .or_else(|| { self.handle_input_rotate(&controller) })
     }
 }
 
 impl State for RunningState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+        self.timestamp_prev = self.timestamp_curr;
+        self.timestamp_curr = timestamp - self.timestamp_start;
+
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
-                x.tick(timestamp);
+                x.tick(self.timestamp_curr);
             }
             self.animations.retain(|x| { x.is_active() });
 
             return None;
         }
 
-        let new_state = self.handle_input(timestamp, controller);
+        let new_state = self.handle_input(controller);
         if new_state.is_some() {
             return new_state;
         }
@@ -338,11 +349,11 @@ impl State for RunningState {
 }
 
 impl Game {
-    fn new(board_width: usize, board_height: usize) -> Self {
+    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
         Self {
             frame_index: 0,
             controller: Controller::new(),
-            state: Box::new(TitleState::new(board_width, board_height)),
+            state: Box::new(TitleState::new(timestamp, board_width, board_height)),
         }
     }
 
@@ -377,14 +388,12 @@ impl Game {
 
         self.controller.button_input.update(timestamp);
         self.controller.touch_input.update(timestamp);
-
-        self.frame_index += 1;
     }
 }
 
 #[no_mangle]
-pub extern fn Game_new(board_width: usize, board_height: usize) -> u32 {
-    util::into_address(Game::new(board_width, board_height))
+pub extern fn Game_new(timestamp: f64, board_width: usize, board_height: usize) -> u32 {
+    util::into_address(Game::new(timestamp, board_width, board_height))
 }
 
 #[no_mangle]

@@ -20,7 +20,7 @@ function register_object(wasm_module, wasm_instance) {
             ctx.clearRect(0, 0, BOARD_WIDTH_PX, BOARD_HEIGHT_PX);
             draw_grid();
 
-            game_object_address = wasm_instance.exports.Game_new(BOARD_WIDTH, BOARD_HEIGHT);
+            game_object_address = wasm_instance.exports.Game_new(timestamp, BOARD_WIDTH, BOARD_HEIGHT);
 
             window.addEventListener("keydown", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 1); }, false);
             window.addEventListener("keyup", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 0); }, false);
