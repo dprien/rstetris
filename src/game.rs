@@ -50,8 +50,13 @@ struct RunningState {
 
     bag: piece::Bag,
     board: board::Board,
+
     position: util::Position,
     rotation: usize,
+
+    score: u64,
+    num_cleared_lines: u64,
+
     animations: Vec<Box<dyn gfx::Animation>>,
 }
 
@@ -109,9 +114,14 @@ impl RunningState {
 
             board,
             bag,
+
             position,
             rotation,
-            animations: Vec::new()
+
+            score: 0,
+            num_cleared_lines: 0,
+
+            animations: Vec::new(),
         }
     }
 
@@ -128,6 +138,29 @@ impl RunningState {
             self.position = position;
             true
         }
+    }
+
+    fn place_piece(&mut self) {
+        let piece = self.bag.current();
+        self.board.put_piece(piece, &self.position, self.rotation);
+
+        let cleared_lines = self.board.clear_lines();
+        if !cleared_lines.is_empty() {
+            self.score += 100 * (1 << (cleared_lines.len() - 1));
+            self.num_cleared_lines += cleared_lines.len() as u64;
+
+            js_api::console_log(format!("Score: {}", self.score));
+
+            let anim = gfx::LineClearAnimation::new(
+                cleared_lines,
+                self.board.width(),
+                self.timestamp_curr,
+                ANIMATION_DURATION_LINE_CLEAR,
+            );
+            self.animations.push(Box::new(anim));
+        }
+
+        self.new_piece();
     }
 
     fn move_piece_x(&mut self, offset: i32) {
@@ -199,8 +232,6 @@ impl RunningState {
         let piece = self.bag.current();
 
         let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
-        self.board.put_piece(piece, &drop_pos, self.rotation);
-
         if drop_pos != self.position {
             let points = piece.iter_coords(self.rotation)
                 .map(|(x, y)| { (x + drop_pos.x as usize, y) })
@@ -217,18 +248,8 @@ impl RunningState {
             self.animations.push(Box::new(anim));
         }
 
-        let cleared_lines = self.board.clear_lines();
-        if !cleared_lines.is_empty() {
-            let anim = gfx::LineClearAnimation::new(
-                cleared_lines,
-                self.board.width(),
-                self.timestamp_curr,
-                ANIMATION_DURATION_LINE_CLEAR,
-            );
-            self.animations.push(Box::new(anim));
-        }
-
-        self.place_new_piece();
+        self.position = drop_pos;
+        self.place_piece();
     }
 
     fn handle_input_misc(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
