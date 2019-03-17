@@ -46,6 +46,8 @@ struct RunningState {
     timestamp_prev: f64,
     timestamp_curr: f64,
 
+    frame_index: u64,
+
     bag: piece::Bag,
     board: board::Board,
     position: util::Position,
@@ -54,7 +56,6 @@ struct RunningState {
 }
 
 struct Game {
-    frame_index: u64,
     controller: Controller,
     state: Box<dyn State>,
 }
@@ -103,6 +104,8 @@ impl RunningState {
             timestamp_start: timestamp,
             timestamp_curr: 0.0,
             timestamp_prev: 0.0,
+
+            frame_index: 0,
 
             board,
             bag,
@@ -310,13 +313,8 @@ impl RunningState {
             .or_else(|| { self.handle_input_move(&controller) })
             .or_else(|| { self.handle_input_rotate(&controller) })
     }
-}
 
-impl State for RunningState {
-    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
-        self.timestamp_prev = self.timestamp_curr;
-        self.timestamp_curr = timestamp - self.timestamp_start;
-
+    fn update(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         if !self.animations.is_empty() {
             for x in self.animations.iter_mut() {
                 x.tick(self.timestamp_curr);
@@ -348,10 +346,21 @@ impl State for RunningState {
     }
 }
 
+impl State for RunningState {
+    fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
+        self.timestamp_prev = self.timestamp_curr;
+        self.timestamp_curr = timestamp - self.timestamp_start;
+
+        let new_state = self.update(controller);
+        self.frame_index += 1;
+
+        new_state
+    }
+}
+
 impl Game {
     fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
         Self {
-            frame_index: 0,
             controller: Controller::new(),
             state: Box::new(TitleState::new(timestamp, board_width, board_height)),
         }
