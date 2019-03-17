@@ -83,10 +83,9 @@ impl Board {
             let dx = position.x + (bx as i32);
             let dy = position.y + (by as i32);
 
-            assert!(dx >= 0 && dx < self.width as i32);
-            assert!(dy >= 0 && dy < self.height as i32);
-
-            self.put_block(dx as usize, dy as usize, piece.color.clone());
+            if dx >= 0 && dx < self.width as i32 && dy >= 0 && dy < self.height as i32 {
+                self.put_block(dx as usize, dy as usize, piece.color.clone());
+            }
         }
     }
 
