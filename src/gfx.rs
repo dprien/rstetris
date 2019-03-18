@@ -160,11 +160,17 @@ impl Animation for LineClearAnimation {
         self.timestamp = timestamp;
         let t_norm = (self.timestamp - self.start) / (self.end - self.start);
 
-        let color = Color::white().fade(ease::cubic_out(1.0 - t_norm));
+        let color = {
+            if t_norm <= 0.7 {
+                Color::white().fade(ease::quadratic_out(1.0 - t_norm / 0.7)).to_argb32()
+            } else {
+                0x000000
+            }
+        };
 
         for &y in self.rows.iter() {
             for x in 0..self.width {
-                js_api::draw_block(x as u32, y as u32, color.to_argb32());
+                js_api::draw_block(x as u32, y as u32, color);
             }
         }
     }
