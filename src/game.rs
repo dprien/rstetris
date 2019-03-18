@@ -350,14 +350,10 @@ impl RunningState {
         let is_left = controller.button_input.is_triggered_or_repeat(INPUT_MOVE_LEFT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
         let is_right = controller.button_input.is_triggered_or_repeat(INPUT_MOVE_RIGHT, INITIAL_DELAY_MOVE, REPEAT_DELAY_MOVE);
 
-        if ts_left > ts_right {
-            if is_left {
-                self.move_piece_x(-1)
-            }
-        } else if ts_right > ts_left {
-            if is_right {
-                self.move_piece_x(1)
-            }
+        if is_left && ts_left > ts_right {
+            self.move_piece_x(-1);
+        } else if is_right && ts_right > ts_left {
+            self.move_piece_x(1);
         }
 
         let is_soft_drop = controller.button_input.is_triggered_or_repeat(INPUT_SOFT_DROP, INITIAL_DELAY_SOFT_DROP, REPEAT_DELAY_SOFT_DROP);
