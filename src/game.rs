@@ -26,7 +26,7 @@ const TOUCH_TAP_PERIOD_THRESHOLD: f64 = 500.0;
 
 const ANIMATION_DURATION_HARD_DROP: f64 = 200.0;
 const ANIMATION_DURATION_LINE_CLEAR: f64 = 1000.0;
-const ANIMATION_DURATION_GAME_OVER: f64 = 2000.0;
+const ANIMATION_DURATION_GAME_OVER: f64 = 3000.0;
 
 trait State {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>>;
@@ -90,12 +90,6 @@ impl TitleState {
         let mut animations = gfx::AnimationQueue::new();
         animations.add(Box::new(gfx::TitleAnimation::new(board_width, board_height, timestamp)));
 
-        for y in 0..board_height {
-            for x in 0..board_width {
-                js_api::draw_block(x as u32, y as i32 as u32, 0x000000);
-            }
-        }
-
         js_api::html("top_bar", "<span class = \"title\">Press SPACE or swipe up to start</span>");
         js_api::html("stats", "");
 
@@ -129,8 +123,14 @@ impl State for TitleState {
 
 impl GameOverState {
     fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+        let anim = gfx::GameOverAnimation::new(
+            board_width,
+            board_height,
+            timestamp,
+            ANIMATION_DURATION_GAME_OVER);
+
         let mut animations = gfx::AnimationQueue::new();
-        animations.add(Box::new(gfx::GameOverAnimation::new(board_width, board_height, timestamp, ANIMATION_DURATION_GAME_OVER)));
+        animations.add(Box::new(anim));
 
         js_api::html("top_bar", "<span class = \"game-over\">GAME OVER</span>");
 
@@ -323,7 +323,6 @@ impl RunningState {
 
     fn handle_input_misc(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
         if controller.button_input.is_triggered(INPUT_GAME_STOP) {
-            self.board.clear();
             return Some(self.game_over());
         }
 

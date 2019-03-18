@@ -1,4 +1,4 @@
-use crate::{js_api};
+use crate::{gfx, js_api};
 
 mod ease;
 
@@ -302,14 +302,28 @@ impl Animation for GameOverAnimation {
     fn tick(&mut self, timestamp: f64) {
         self.timestamp = timestamp;
 
+        let white = gfx::Color::white();
+
         let t_norm = (self.timestamp - self.start) / (self.end - self.start);
-        let start_y = ((1.0 - t_norm) * self.height as f64).ceil() as usize;
+        let t_norm = 1.0 - t_norm.max(0.0).min(1.0);
 
-        let color = Color::rgb(127, 127, 127).to_argb32();
+        let t_norm_height = t_norm * self.height as f64;
+        let t_norm_y = t_norm_height.trunc() as usize;
+        let yt = t_norm_height.fract();
 
-        for y in start_y..self.height {
+        for y in 0..self.height {
+            let color = {
+                if y < t_norm_y {
+                    continue;
+                } else if y > t_norm_y {
+                    0x000000
+                } else {
+                    white.fade(yt).to_argb32()
+                }
+            };
+
             for x in 0..self.width {
-                js_api::draw_block(x as u32, y as i32 as u32, color);
+                js_api::draw_block(x as u32, y as u32, color);
             }
         }
     }
