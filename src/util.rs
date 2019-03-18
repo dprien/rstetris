@@ -98,7 +98,7 @@ pub fn format_timestamp(timestamp: f64) -> String {
     let cs = (timestamp / 10.0).floor() as u64 % 100;
 
     if hh == 0 {
-        format!("{}:{:02}.{:02}", mm, ss, cs)
+        format!("{:02}:{:02}.{:02}", mm, ss, cs)
     } else {
         format!("{}:{:02}:{:02}.{:02}", hh, mm, ss, cs)
     }
