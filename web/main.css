@@ -32,7 +32,16 @@ body {
     flex-direction: row;
 }
 
-.top, .middle, .bottom, .left, .right {
+.left, .right {
+    flex: 1;
+    overflow: hidden;
+}
+
+.top, .middle {
+    flex: 2;
+}
+
+.bottom {
     flex: 1;
 }
 
@@ -59,39 +68,45 @@ body {
 
 #top_bar span.title {
     color: #fff;
+
     font-size: 2vh;
     font-weight: bold;
 }
 
 #top_bar span.game-over {
-    color: #ff4000;
-    font-size: 7vh;
+    color: #e00000;
+
+    font-family: fantasy;
+    font-size: 8vh;
     font-weight: bold;
-    font-family: monospace;
+
+    letter-spacing: 0.4vh;
 }
 
 #stats {
     text-align: right;
-    padding-top: 1vh;
-    padding-right: 1vh;
+    padding-top: 0;
+    padding-right: 0.5vh;
 }
 
 #stats > div {
-    font-family: monospace;
-    margin-bottom: 2vh;
+    margin-bottom: 3vh;
 }
 
 #stats span.name {
     display: block;
 
-    color: #888;
+    color: #00e0e0;
 
-    font-size: 1.5vh;
+    font-family: fantasy;
+    font-size: 2vh;
     font-weight: bold;
+    letter-spacing: 0.15vh
 }
 
 #stats span.value {
     display: block;
 
-    font-size: 1.25vh;
+    font-family: monospace;
+    font-size: 1.5vh;
 }
