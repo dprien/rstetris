@@ -56,7 +56,7 @@ struct RunningState {
     timestamp_curr: f64,
     timestamp_prev: f64,
 
-    frame_index: u64,
+    frame_index: u32,
 
     bag: piece::Bag,
     board: board::Board,
@@ -64,9 +64,9 @@ struct RunningState {
     position: util::Position,
     rotation: usize,
 
-    score: u64,
-    num_cleared_lines: u64,
-    level: u64,
+    score: u32,
+    num_cleared_lines: u32,
+    level: u32,
 
     animations: gfx::AnimationQueue,
 }
@@ -221,7 +221,7 @@ impl RunningState {
         let cleared_lines = self.board.clear_lines();
         if !cleared_lines.is_empty() {
             self.score += 100 * (1 << (cleared_lines.len() - 1));
-            self.num_cleared_lines += cleared_lines.len() as u64;
+            self.num_cleared_lines += cleared_lines.len() as u32;
 
             let anim = gfx::LineClearAnimation::new(
                 cleared_lines,
@@ -429,7 +429,7 @@ impl RunningState {
     }
 
     fn update(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
-        self.level = 1 + ((self.timestamp_curr - self.timestamp_start) / 60000.0) as u64;
+        self.level = 1 + ((self.timestamp_curr - self.timestamp_start) / (30.0 * 1000.0)) as u32;
 
         if self.frame_index % 2 == 0 {
             self.output_stats();
