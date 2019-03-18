@@ -31,11 +31,15 @@ pub struct LineClearAnimation {
 pub struct WhooshAnimation {
     start: f64,
     end: f64,
+
     timestamp: f64,
+
     points: Vec<(usize, usize)>,
+    color: Color,
+
+    x: i32,
     y1: i32,
     y2: i32,
-    color: Color,
 }
 
 pub struct TitleAnimation {
@@ -167,21 +171,26 @@ impl Animation for LineClearAnimation {
 }
 
 impl WhooshAnimation {
-    pub fn new(points: Vec<(usize, usize)>, y1: i32, y2: i32, color: Color, timestamp: f64, duration: f64) -> Self {
+    pub fn new<I>(points: I, color: Color, x: i32, y1: i32, y2: i32, timestamp: f64, duration: f64) -> Self
+        where I: IntoIterator<Item = (usize, usize)>
+    {
         Self {
             start: timestamp,
             end: timestamp + duration,
             timestamp,
-            points,
+            points: points.into_iter().collect(),
+            color,
+            x,
             y1,
             y2,
-            color,
         }
     }
 
     fn draw_points(&self, y: i32, color: &Color) {
         for &(bx, by) in self.points.iter() {
-            js_api::draw_block(bx as u32, (by as i32 + y) as u32, color.to_argb32());
+            let bx = bx as i32 + self.x;
+            let by = by as i32 + y;
+            js_api::draw_block(bx as u32, by as u32, color.to_argb32());
         }
     }
 }

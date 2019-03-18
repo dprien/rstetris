@@ -305,15 +305,12 @@ impl RunningState {
 
         let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
         if drop_pos != self.position {
-            let points = piece.iter_coords(self.rotation)
-                .map(|(x, y)| { (x + drop_pos.x as usize, y) })
-                .collect::<Vec<_>>();
-
             let anim = gfx::WhooshAnimation::new(
-                points,
+                piece.iter_coords(self.rotation),
+                piece.color.clone(),
+                self.position.x,
                 self.position.y,
                 drop_pos.y,
-                piece.color.clone(),
                 self.timestamp_curr,
                 ANIMATION_DURATION_HARD_DROP);
 
