@@ -229,7 +229,7 @@ impl RunningState {
 
         let cleared_lines = self.board.clear_lines();
         if !cleared_lines.is_empty() {
-            self.score += 100 * (1 << (cleared_lines.len() - 1));
+            self.score += 100 * (1 << (cleared_lines.len() - 1)) + 50 * (self.level - 1);
             self.num_cleared_lines += cleared_lines.len() as u32;
             self.level = (1 + self.num_cleared_lines / 10).min(20);
 
