@@ -9,7 +9,7 @@ extern {
     fn _js_random() -> f64;
 
     #[link_name = "html"]
-    fn _js_html(id_address: u32, id_length: u32, html_address: u32, html_length: u32) -> f64;
+    fn _js_html(id_address: u32, id_length: u32, html_address: u32, html_length: u32);
 }
 
 pub fn console_log<T>(s: T)
