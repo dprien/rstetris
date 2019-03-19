@@ -1,4 +1,4 @@
-use crate::{gfx, js_api};
+use crate::{gfx, util, js_api};
 
 mod ease;
 
@@ -21,18 +21,16 @@ pub struct AnimationQueue {
 }
 
 pub struct LineClearAnimation {
-    start: f64,
-    end: f64,
-    timestamp: f64,
+    clock: util::Clock,
+    duration: f64,
+
     rows: Vec<usize>,
     width: usize,
 }
 
 pub struct WhooshAnimation {
-    start: f64,
-    end: f64,
-
-    timestamp: f64,
+    clock: util::Clock,
+    duration: f64,
 
     points: Vec<(usize, usize)>,
     color: Color,
@@ -43,17 +41,16 @@ pub struct WhooshAnimation {
 }
 
 pub struct TitleAnimation {
-    timestamp_curr: f64,
-    timestamp_prev: f64,
+    clock: util::Clock,
 
     width: usize,
     height: usize,
 }
 
 pub struct GameOverAnimation {
-    start: f64,
-    end: f64,
-    timestamp: f64,
+    clock: util::Clock,
+    duration: f64,
+
     width: usize,
     height: usize,
 }
@@ -115,6 +112,10 @@ impl AnimationQueue {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.animations.is_empty()
+    }
+
     pub fn should_block(&self) -> bool {
         self.animations.iter().any(|x| { x.is_blocking() })
     }
@@ -134,13 +135,12 @@ impl AnimationQueue {
     }
 }
 
-
 impl LineClearAnimation {
     pub fn new(rows: Vec<usize>, width: usize, timestamp: f64, duration: f64) -> Self {
         Self {
-            start: timestamp,
-            end: timestamp + duration,
-            timestamp,
+            clock: util::Clock::new(timestamp),
+            duration,
+
             rows,
             width,
         }
@@ -149,7 +149,7 @@ impl LineClearAnimation {
 
 impl Animation for LineClearAnimation {
     fn is_active(&self) -> bool {
-        self.timestamp < self.end
+        self.clock.elapsed() < self.duration
     }
 
     fn is_blocking(&self) -> bool {
@@ -157,12 +157,12 @@ impl Animation for LineClearAnimation {
     }
 
     fn tick(&mut self, timestamp: f64) {
-        self.timestamp = timestamp;
-        let t_norm = (self.timestamp - self.start) / (self.end - self.start);
+        self.clock.update(timestamp);
 
         let color = {
-            if t_norm <= 0.7 {
-                Color::white().fade(ease::quadratic_out(1.0 - t_norm / 0.7)).to_argb32()
+            let t = util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
+            if t <= 0.7 {
+                Color::white().fade(ease::quadratic_out(1.0 - t / 0.7)).to_argb32()
             } else {
                 0x000000
             }
@@ -181,9 +181,9 @@ impl WhooshAnimation {
         where I: IntoIterator<Item = (usize, usize)>
     {
         Self {
-            start: timestamp,
-            end: timestamp + duration,
-            timestamp,
+            clock: util::Clock::new(timestamp),
+            duration,
+
             points: points.into_iter().collect(),
             color,
             x,
@@ -203,7 +203,7 @@ impl WhooshAnimation {
 
 impl Animation for WhooshAnimation {
     fn is_active(&self) -> bool {
-        self.timestamp < self.end
+        self.clock.elapsed() < self.duration
     }
 
     fn is_blocking(&self) -> bool {
@@ -211,14 +211,14 @@ impl Animation for WhooshAnimation {
     }
 
     fn tick(&mut self, timestamp: f64) {
-        self.timestamp = timestamp;
-        let t_norm = (self.timestamp - self.start) / (self.end - self.start);
+        self.clock.update(timestamp);
+        let t = util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
 
         for y in self.y1..self.y2 {
             let intensity = {
-                let y_norm = (y - self.y1 + 1) as f64 / (self.y2 - self.y1) as f64;
-                if t_norm <= y_norm {
-                    1.0 - t_norm / y_norm
+                let yt = (y - self.y1 + 1) as f64 / (self.y2 - self.y1) as f64;
+                if t <= yt {
+                    1.0 - t / yt
                 } else {
                     0.0
                 }
@@ -235,8 +235,7 @@ impl Animation for WhooshAnimation {
 impl TitleAnimation {
     pub fn new(width: usize, height: usize, timestamp: f64) -> Self {
         Self {
-            timestamp_curr: timestamp,
-            timestamp_prev: timestamp,
+            clock: util::Clock::new(timestamp),
 
             width,
             height,
@@ -254,13 +253,8 @@ impl Animation for TitleAnimation {
     }
 
     fn tick(&mut self, timestamp: f64) {
-        self.timestamp_prev = self.timestamp_curr;
-        self.timestamp_curr = timestamp;
-
-        let prev = (self.timestamp_prev / 500.0).floor() as i32;
-        let curr = (self.timestamp_curr / 500.0).floor() as i32;
-
-        if curr <= prev {
+        self.clock.update(timestamp);
+        if !self.clock.has_passed_multiple_of(500.0, 0.0) {
             return;
         }
 
@@ -281,9 +275,9 @@ impl Animation for TitleAnimation {
 impl GameOverAnimation {
     pub fn new(width: usize, height: usize, timestamp: f64, duration: f64) -> Self {
         Self {
-            start: timestamp,
-            end: timestamp + duration,
-            timestamp,
+            clock: util::Clock::new(timestamp),
+            duration,
+
             width,
             height
         }
@@ -292,7 +286,7 @@ impl GameOverAnimation {
 
 impl Animation for GameOverAnimation {
     fn is_active(&self) -> bool {
-        self.timestamp < self.end
+        self.clock.elapsed() < self.duration
     }
 
     fn is_blocking(&self) -> bool {
@@ -300,25 +294,23 @@ impl Animation for GameOverAnimation {
     }
 
     fn tick(&mut self, timestamp: f64) {
-        self.timestamp = timestamp;
+        self.clock.update(timestamp);
 
         let white = gfx::Color::white();
 
-        let t_norm = (self.timestamp - self.start) / (self.end - self.start);
-        let t_norm = 1.0 - t_norm.max(0.0).min(1.0);
-
-        let t_norm_height = t_norm * self.height as f64;
-        let t_norm_y = t_norm_height.trunc() as usize;
-        let yt = t_norm_height.fract();
+        let t = 1.0 - util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
+        let tick_height = t * self.height as f64;
+        let tick_y = tick_height.trunc() as usize;
+        let tick_t = tick_height.fract();
 
         for y in 0..self.height {
             let color = {
-                if y < t_norm_y {
+                if y < tick_y {
                     continue;
-                } else if y > t_norm_y {
+                } else if y > tick_y {
                     0x000000
                 } else {
-                    white.fade(yt).to_argb32()
+                    white.fade(tick_t).to_argb32()
                 }
             };
 

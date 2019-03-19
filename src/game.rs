@@ -52,9 +52,9 @@ struct GameOverState {
 }
 
 struct RunningState {
-    timestamp_start: f64,
-    timestamp_curr: f64,
-    timestamp_prev: f64,
+    real_clock: util::Clock,
+    anim_clock: util::Clock,
+    game_clock: util::Clock,
 
     frame_index: u32,
 
@@ -63,6 +63,7 @@ struct RunningState {
 
     position: util::Position,
     rotation: usize,
+    fall_timer: f64,
 
     score: u32,
     num_cleared_lines: u32,
@@ -175,9 +176,9 @@ impl RunningState {
         let position = board.initial_position(bag.current(), rotation);
 
         Self {
-            timestamp_start: timestamp,
-            timestamp_curr: timestamp,
-            timestamp_prev: timestamp,
+            real_clock: util::Clock::new(timestamp),
+            anim_clock: util::Clock::new(timestamp),
+            game_clock: util::Clock::new(timestamp),
 
             frame_index: 0,
 
@@ -186,17 +187,22 @@ impl RunningState {
 
             position,
             rotation,
+            fall_timer: 0.0,
 
             score: 0,
             num_cleared_lines: 0,
-            level: 0,
+            level: 1,
 
             animations: gfx::AnimationQueue::new(),
         }
     }
 
     fn game_over(&self) -> Box<dyn State> {
-        return Box::new(GameOverState::new(self.timestamp_curr, self.board.width(), self.board.height()));
+        return Box::new(GameOverState::new(self.real_clock.timestamp(), self.board.width(), self.board.height()));
+    }
+
+    fn reset_fall_timer(&mut self) {
+        self.fall_timer = self.game_clock.elapsed();
     }
 
     fn new_piece(&mut self) -> bool {
@@ -208,8 +214,11 @@ impl RunningState {
         if self.board.collides(self.bag.current(), &position, rotation) {
             false
         } else {
+            self.reset_fall_timer();
+
             self.rotation = rotation;
             self.position = position;
+
             true
         }
     }
@@ -222,27 +231,26 @@ impl RunningState {
         if !cleared_lines.is_empty() {
             self.score += 100 * (1 << (cleared_lines.len() - 1));
             self.num_cleared_lines += cleared_lines.len() as u32;
+            self.level = (1 + self.num_cleared_lines / 10).min(20);
 
             let anim = gfx::LineClearAnimation::new(
                 cleared_lines,
                 self.board.width(),
-                self.timestamp_curr,
+                self.anim_clock.elapsed(),
                 ANIMATION_DURATION_LINE_CLEAR,
             );
             self.animations.add(Box::new(anim));
         }
-
-        self.new_piece();
     }
 
-    fn move_piece_x(&mut self, offset: i32) {
+    fn move_piece_x(&mut self, offset: i32) -> bool {
         let step = {
             if offset > 0 {
                 1
             } else if offset < 0 {
                 -1
             } else {
-                return;
+                return false;
             }
         };
 
@@ -250,33 +258,41 @@ impl RunningState {
         for _ in 0..offset.abs() {
             let new_position = self.position.add_x(step);
             if self.board.collides(piece, &new_position, self.rotation) {
-                break;
+                return false;
             }
             self.position = new_position;
         }
+
+        true
     }
 
-    fn move_piece_y(&mut self, offset: i32) {
+    fn move_piece_y(&mut self, offset: i32) -> bool {
         if offset <= 0 {
-            return;
+            return false;
         }
 
         let piece = self.bag.current();
         for _ in 0..offset.abs() {
             let new_position = self.position.add_y(1);
             if self.board.collides(piece, &new_position, self.rotation) {
-                break;
+                return false;
             }
             self.position = new_position;
         }
+
+        true
     }
 
-    fn rotate_piece(&mut self, offset: i32) {
+    fn rotate_piece(&mut self, offset: i32) -> bool {
         if offset == 0 {
-            return;
+            return false;
         }
 
+        let orig_position = self.position;
+        let orig_rotation = self.rotation;
+
         let piece = self.bag.current();
+
         for _ in 0..offset.abs() {
             let new_rotation = {
                 if offset > 0 {
@@ -298,9 +314,15 @@ impl RunningState {
                 }
             }
         }
+
+        self.position != orig_position || self.rotation != orig_rotation
     }
 
-    fn hard_drop_piece(&mut self) {
+    fn hard_drop_piece(&mut self) -> Option<Box<dyn State>> {
+        if self.game_clock.is_suspended() {
+            return None;
+        }
+
         let piece = self.bag.current();
 
         let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
@@ -311,7 +333,7 @@ impl RunningState {
                 self.position.x,
                 self.position.y,
                 drop_pos.y,
-                self.timestamp_curr,
+                self.anim_clock.elapsed(),
                 ANIMATION_DURATION_HARD_DROP);
 
             self.animations.add(Box::new(anim));
@@ -319,6 +341,12 @@ impl RunningState {
 
         self.position = drop_pos;
         self.place_piece();
+
+        if !self.new_piece() {
+            Some(self.game_over())
+        } else {
+            None
+        }
     }
 
     fn handle_input_misc(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
@@ -330,19 +358,27 @@ impl RunningState {
     }
 
     fn handle_input_drop(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
+        if self.game_clock.is_suspended() {
+            return None;
+        }
+
         if controller.button_input.is_triggered(INPUT_HARD_DROP) {
-            self.hard_drop_piece();
+            return self.hard_drop_piece();
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            self.hard_drop_piece();
+            return self.hard_drop_piece();
         }
 
         None
     }
 
     fn handle_input_move(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
+        if self.game_clock.is_suspended() {
+            return None;
+        }
+
         let ts_left = controller.button_input.get_button_press_timestamp(INPUT_MOVE_LEFT);
         let ts_right = controller.button_input.get_button_press_timestamp(INPUT_MOVE_RIGHT);
 
@@ -357,7 +393,9 @@ impl RunningState {
 
         let is_soft_drop = controller.button_input.is_triggered_or_repeat(INPUT_SOFT_DROP, INITIAL_DELAY_SOFT_DROP, REPEAT_DELAY_SOFT_DROP);
         if is_soft_drop {
-            self.move_piece_y(1);
+            if self.move_piece_y(1) {
+                self.reset_fall_timer();
+            }
         }
 
         for (_, (start, prev, curr)) in controller.touch_input.motions() {
@@ -366,7 +404,10 @@ impl RunningState {
 
             if x_offset != 0 || y_offset != 0 {
                 self.move_piece_x(x_offset);
-                self.move_piece_y(y_offset);
+
+                if self.move_piece_y(y_offset) {
+                    self.reset_fall_timer();
+                }
             }
         }
 
@@ -374,6 +415,10 @@ impl RunningState {
     }
 
     fn handle_input_rotate(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
+        if self.game_clock.is_suspended() {
+            return None;
+        }
+
         let is_cw = controller.button_input.is_triggered(INPUT_ROTATE_CW);
         let is_ccw = controller.button_input.is_triggered(INPUT_ROTATE_CCW);
 
@@ -385,7 +430,9 @@ impl RunningState {
 
         let num_taps = controller.touch_input.taps(TOUCH_TAP_DISTANCE_THRESHOLD, TOUCH_TAP_PERIOD_THRESHOLD).count();
         if num_taps > 0 {
-            self.rotate_piece(1);
+            if self.rotate_piece(1) {
+                self.reset_fall_timer();
+            }
         }
 
         None
@@ -397,6 +444,24 @@ impl RunningState {
             .or_else(|| { self.handle_input_drop(&controller) })
             .or_else(|| { self.handle_input_move(&controller) })
             .or_else(|| { self.handle_input_rotate(&controller) })
+    }
+
+    fn apply_gravity(&mut self) -> Option<Box<dyn State>> {
+        if self.game_clock.is_suspended() {
+            return None;
+        }
+
+        let gravity = 0.904974583f64.powf(self.level as f64 - 1.0) * 1000.0;
+        if self.game_clock.has_passed_multiple_of(gravity, self.fall_timer) {
+            if !self.move_piece_y(1) {
+                self.place_piece();
+                if !self.new_piece() {
+                    return Some(self.game_over());
+                }
+            }
+        }
+
+        None
     }
 
     fn output_stats(&self) {
@@ -419,7 +484,7 @@ impl RunningState {
                 <span class = "value">{}</span>
             </div>
             "#,
-            util::format_timestamp(self.timestamp_curr - self.timestamp_start),
+            util::format_timestamp(self.real_clock.elapsed()),
             self.score,
             self.num_cleared_lines,
             self.level,
@@ -429,33 +494,29 @@ impl RunningState {
     }
 
     fn update(&mut self, controller: &Controller) -> Option<Box<dyn State>> {
-        self.level = 1 + ((self.timestamp_curr - self.timestamp_start) / (30.0 * 1000.0)) as u32;
-
-        if self.frame_index % 2 == 0 {
-            self.output_stats();
-        }
-
-        self.animations.update(self.timestamp_curr);
-        if self.animations.should_block() {
-            return None;
-        }
-
-        let new_state = self.handle_input(controller);
+        let new_state = self.handle_input(controller).or_else(|| { self.apply_gravity() });
         if new_state.is_some() {
             return new_state;
         }
 
-        if self.animations.should_block() {
-            return None;
+        self.anim_clock.toggle(self.animations.is_empty());
+        self.animations.update(self.anim_clock.elapsed());
+
+        self.game_clock.toggle(self.animations.should_block());
+
+        if !self.game_clock.is_suspended() {
+            self.board.draw();
+
+            let piece = self.bag.current();
+            let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
+
+            piece.draw(&drop_pos, self.rotation, 0.4);
+            piece.draw(&self.position, self.rotation, 1.0);
         }
 
-        self.board.draw();
-
-        let piece = self.bag.current();
-        let drop_pos = self.board.find_drop_position(piece, &self.position, self.rotation);
-
-        piece.draw(&drop_pos, self.rotation, 0.4);
-        piece.draw(&self.position, self.rotation, 1.0);
+        if self.frame_index % 2 == 0 {
+            self.output_stats();
+        }
 
         None
     }
@@ -463,8 +524,9 @@ impl RunningState {
 
 impl State for RunningState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
-        self.timestamp_prev = self.timestamp_curr;
-        self.timestamp_curr = timestamp;
+        self.real_clock.update(timestamp);
+        self.anim_clock.update(timestamp);
+        self.game_clock.update(timestamp);
 
         let new_state = self.update(controller);
         self.frame_index += 1;

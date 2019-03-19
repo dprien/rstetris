@@ -8,6 +8,16 @@ pub struct Position {
     pub y: i32,
 }
 
+pub struct Clock {
+    curr_ts: f64,
+    prev_ts: f64,
+
+    resume_ts: f64,
+    accumulator: f64,
+
+    suspended: bool,
+}
+
 impl Position {
     pub fn new(x: i32, y: i32) -> Self {
         Self {
@@ -32,6 +42,73 @@ impl Position {
             x: self.x,
             y: self.y.saturating_add(offset),
         }
+    }
+}
+
+impl Clock {
+    pub fn new(timestamp: f64) -> Self {
+        Self {
+            curr_ts: timestamp,
+            prev_ts: timestamp,
+
+            resume_ts: timestamp,
+            accumulator: 0.0,
+
+            suspended: false,
+        }
+    }
+
+    pub fn timestamp(&self) -> f64 {
+        self.curr_ts
+    }
+
+    pub fn elapsed(&self) -> f64 {
+        if self.is_suspended() {
+            self.accumulator
+        } else {
+            self.accumulator + (self.curr_ts - self.resume_ts)
+        }
+    }
+
+    pub fn has_passed_multiple_of(&self, divisor: f64, bias: f64) -> bool {
+        let prev_elapsed = self.accumulator + (self.prev_ts - self.resume_ts);
+        let curr_elapsed = self.accumulator + (self.curr_ts - self.resume_ts);
+
+        let prev = ((prev_elapsed - bias).max(0.0) / divisor).floor();
+        let curr = ((curr_elapsed - bias).max(0.0) / divisor).floor();
+
+        curr > prev
+    }
+
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
+    }
+
+    pub fn suspend(&mut self) {
+        if !self.suspended {
+            self.accumulator += self.curr_ts - self.resume_ts;
+            self.suspended = true;
+        }
+    }
+
+    pub fn resume(&mut self) {
+        if self.suspended {
+            self.resume_ts = self.curr_ts;
+            self.suspended = false;
+        }
+    }
+
+    pub fn toggle(&mut self, toggle: bool) {
+        if toggle {
+            self.suspend();
+        } else {
+            self.resume();
+        }
+    }
+
+    pub fn update(&mut self, timestamp: f64) {
+        self.prev_ts = self.curr_ts;
+        self.curr_ts = timestamp;
     }
 }
 
