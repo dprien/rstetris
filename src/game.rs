@@ -87,9 +87,9 @@ impl Controller {
 }
 
 impl TitleState {
-    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+    fn new(board_width: usize, board_height: usize) -> Self {
         let mut animations = gfx::AnimationQueue::new();
-        animations.add(Box::new(gfx::TitleAnimation::new(board_width, board_height, timestamp)));
+        animations.add(Box::new(gfx::TitleAnimation::new(board_width, board_height)));
 
         js_api::html("top_bar", "<span class = \"title\">Press SPACE or swipe up to start</span>");
         js_api::html("stats", "");
@@ -110,12 +110,12 @@ impl State for TitleState {
         }
 
         if controller.button_input.is_triggered(INPUT_GAME_START) {
-            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            return Some(Box::new(RunningState::new(timestamp, self.board_width, self.board_height)))
+            return Some(Box::new(RunningState::new(self.board_width, self.board_height)))
         }
 
         None
@@ -123,11 +123,10 @@ impl State for TitleState {
 }
 
 impl GameOverState {
-    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+    fn new(board_width: usize, board_height: usize) -> Self {
         let anim = gfx::GameOverAnimation::new(
             board_width,
             board_height,
-            timestamp,
             ANIMATION_DURATION_GAME_OVER);
 
         let mut animations = gfx::AnimationQueue::new();
@@ -154,12 +153,12 @@ impl State for GameOverState {
         let is_stop = controller.button_input.is_triggered(INPUT_GAME_STOP);
 
         if is_start || is_stop {
-            return Some(Box::new(TitleState::new(timestamp, self.board_width, self.board_height)));
+            return Some(Box::new(TitleState::new(self.board_width, self.board_height)));
         }
 
         let num_swipes = controller.touch_input.swipes_up(TOUCH_SWIPE_DISTANCE_THRESHOLD).count();
         if num_swipes > 0 {
-            return Some(Box::new(TitleState::new(timestamp, self.board_width, self.board_height)));
+            return Some(Box::new(TitleState::new(self.board_width, self.board_height)));
         }
 
         None
@@ -167,7 +166,7 @@ impl State for GameOverState {
 }
 
 impl RunningState {
-    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+    fn new(board_width: usize, board_height: usize) -> Self {
         js_api::html("top_bar", "");
 
         let board = board::Board::new(board_width, board_height);
@@ -176,9 +175,9 @@ impl RunningState {
         let position = board.initial_position(bag.current(), rotation);
 
         Self {
-            real_clock: util::Clock::new(timestamp),
-            anim_clock: util::Clock::new(timestamp),
-            game_clock: util::Clock::new(timestamp),
+            real_clock: util::Clock::new(),
+            anim_clock: util::Clock::new(),
+            game_clock: util::Clock::new(),
 
             frame_index: 0,
 
@@ -198,7 +197,7 @@ impl RunningState {
     }
 
     fn game_over(&self) -> Box<dyn State> {
-        return Box::new(GameOverState::new(self.real_clock.timestamp(), self.board.width(), self.board.height()));
+        return Box::new(GameOverState::new(self.board.width(), self.board.height()));
     }
 
     fn reset_fall_timer(&mut self) {
@@ -236,7 +235,6 @@ impl RunningState {
             let anim = gfx::LineClearAnimation::new(
                 cleared_lines,
                 self.board.width(),
-                self.anim_clock.elapsed(),
                 ANIMATION_DURATION_LINE_CLEAR,
             );
             self.animations.add(Box::new(anim));
@@ -333,7 +331,6 @@ impl RunningState {
                 self.position.x,
                 self.position.y,
                 drop_pos.y,
-                self.anim_clock.elapsed(),
                 ANIMATION_DURATION_HARD_DROP);
 
             self.animations.add(Box::new(anim));
@@ -536,10 +533,10 @@ impl State for RunningState {
 }
 
 impl Game {
-    fn new(timestamp: f64, board_width: usize, board_height: usize) -> Self {
+    fn new(board_width: usize, board_height: usize) -> Self {
         Self {
             controller: Controller::new(),
-            state: Box::new(TitleState::new(timestamp, board_width, board_height)),
+            state: Box::new(TitleState::new(board_width, board_height)),
         }
     }
 
@@ -578,8 +575,8 @@ impl Game {
 }
 
 #[no_mangle]
-pub extern fn Game_new(timestamp: f64, board_width: usize, board_height: usize) -> u32 {
-    util::into_address(Game::new(timestamp, board_width, board_height))
+pub extern fn Game_new(board_width: usize, board_height: usize) -> u32 {
+    util::into_address(Game::new(board_width, board_height))
 }
 
 #[no_mangle]

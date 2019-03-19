@@ -136,9 +136,9 @@ impl AnimationQueue {
 }
 
 impl LineClearAnimation {
-    pub fn new(rows: Vec<usize>, width: usize, timestamp: f64, duration: f64) -> Self {
+    pub fn new(rows: Vec<usize>, width: usize, duration: f64) -> Self {
         Self {
-            clock: util::Clock::new(timestamp),
+            clock: util::Clock::new(),
             duration,
 
             rows,
@@ -177,11 +177,11 @@ impl Animation for LineClearAnimation {
 }
 
 impl WhooshAnimation {
-    pub fn new<I>(points: I, color: Color, x: i32, y1: i32, y2: i32, timestamp: f64, duration: f64) -> Self
+    pub fn new<I>(points: I, color: Color, x: i32, y1: i32, y2: i32, duration: f64) -> Self
         where I: IntoIterator<Item = (usize, usize)>
     {
         Self {
-            clock: util::Clock::new(timestamp),
+            clock: util::Clock::new(),
             duration,
 
             points: points.into_iter().collect(),
@@ -233,9 +233,9 @@ impl Animation for WhooshAnimation {
 }
 
 impl TitleAnimation {
-    pub fn new(width: usize, height: usize, timestamp: f64) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
-            clock: util::Clock::new(timestamp),
+            clock: util::Clock::new(),
 
             width,
             height,
@@ -273,9 +273,9 @@ impl Animation for TitleAnimation {
 }
 
 impl GameOverAnimation {
-    pub fn new(width: usize, height: usize, timestamp: f64, duration: f64) -> Self {
+    pub fn new(width: usize, height: usize, duration: f64) -> Self {
         Self {
-            clock: util::Clock::new(timestamp),
+            clock: util::Clock::new(),
             duration,
 
             width,

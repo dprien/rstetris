@@ -9,13 +9,13 @@ pub struct Position {
 }
 
 pub struct Clock {
-    curr_ts: f64,
-    prev_ts: f64,
-
-    resume_ts: f64,
     accumulator: f64,
-
     suspended: bool,
+
+    curr_ts: Option<f64>,
+    prev_ts: Option<f64>,
+
+    reference_ts: Option<f64>,
 }
 
 impl Position {
@@ -46,36 +46,39 @@ impl Position {
 }
 
 impl Clock {
-    pub fn new(timestamp: f64) -> Self {
+    pub fn new() -> Self {
         Self {
-            curr_ts: timestamp,
-            prev_ts: timestamp,
-
-            resume_ts: timestamp,
             accumulator: 0.0,
-
             suspended: false,
+
+            curr_ts: None,
+            prev_ts: None,
+
+            reference_ts: None,
         }
     }
 
-    pub fn timestamp(&self) -> f64 {
-        self.curr_ts
+    fn since_resume(&self, timestamp: &Option<f64>) -> f64 {
+        self.reference_ts
+            .and_then(|r| { timestamp.map(|x| { x - r }) })
+            .unwrap_or(0.0)
     }
 
-    pub fn elapsed(&self) -> f64 {
+    fn elapsed_until(&self, timestamp: &Option<f64>) -> f64 {
         if self.is_suspended() {
             self.accumulator
         } else {
-            self.accumulator + (self.curr_ts - self.resume_ts)
+            self.accumulator + self.since_resume(timestamp)
         }
     }
 
-    pub fn has_passed_multiple_of(&self, divisor: f64, bias: f64) -> bool {
-        let prev_elapsed = self.accumulator + (self.prev_ts - self.resume_ts);
-        let curr_elapsed = self.accumulator + (self.curr_ts - self.resume_ts);
+    pub fn elapsed(&self) -> f64 {
+        self.elapsed_until(&self.curr_ts)
+    }
 
-        let prev = ((prev_elapsed - bias).max(0.0) / divisor).floor();
-        let curr = ((curr_elapsed - bias).max(0.0) / divisor).floor();
+    pub fn has_passed_multiple_of(&self, divisor: f64, bias: f64) -> bool {
+        let prev = ((self.elapsed_until(&self.prev_ts) - bias).max(0.0) / divisor).floor();
+        let curr = ((self.elapsed_until(&self.curr_ts) - bias).max(0.0) / divisor).floor();
 
         curr > prev
     }
@@ -86,14 +89,14 @@ impl Clock {
 
     pub fn suspend(&mut self) {
         if !self.suspended {
-            self.accumulator += self.curr_ts - self.resume_ts;
+            self.accumulator += self.since_resume(&self.curr_ts);
             self.suspended = true;
         }
     }
 
     pub fn resume(&mut self) {
         if self.suspended {
-            self.resume_ts = self.curr_ts;
+            self.reference_ts = self.curr_ts;
             self.suspended = false;
         }
     }
@@ -107,8 +110,12 @@ impl Clock {
     }
 
     pub fn update(&mut self, timestamp: f64) {
+        if let None = self.reference_ts {
+            self.reference_ts = Some(timestamp);
+        }
+
         self.prev_ts = self.curr_ts;
-        self.curr_ts = timestamp;
+        self.curr_ts = Some(timestamp);
     }
 }
 
