@@ -14,6 +14,9 @@ function register_object(wasm_module, wasm_instance) {
     canvas.height = BOARD_HEIGHT_PX;
     const ctx = canvas.getContext("2d");
 
+    let tile_image = new Image();
+    tile_image.src = "tile.png";
+
     let game_object_address = null;
     const tick = timestamp => {
         if (game_object_address === null) {
@@ -70,6 +73,10 @@ function register_object(wasm_module, wasm_instance) {
         const cw = BLOCK_SIZE_PX - 2;
         const ch = BLOCK_SIZE_PX - 2;
 
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(tile_image, cx, cy, cw, ch);
+
+        ctx.globalCompositeOperation = "multiply";
         ctx.fillStyle = color_hex;
         ctx.fillRect(cx, cy, cw, ch);
     };
