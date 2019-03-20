@@ -66,19 +66,23 @@ function register_object(wasm_module, wasm_instance) {
     };
 
     const draw_block = (x, y, color) => {
-        const color_hex = "#" + color.toString(16).padStart(6, "0");
-
         const cx = x * BLOCK_SIZE_PX + 1;
         const cy = y * BLOCK_SIZE_PX + 1;
         const cw = BLOCK_SIZE_PX - 2;
         const ch = BLOCK_SIZE_PX - 2;
 
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(tile_image, cx, cy, cw, ch);
+        if (color == 0) {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(cx, cy, cw, ch);
+        } else {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.drawImage(tile_image, cx, cy, cw, ch);
 
-        ctx.globalCompositeOperation = "multiply";
-        ctx.fillStyle = color_hex;
-        ctx.fillRect(cx, cy, cw, ch);
+            ctx.globalCompositeOperation = "multiply";
+            ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
+            ctx.fillRect(cx, cy, cw, ch);
+        }
     };
 
     const console_log = (address, length) => {
