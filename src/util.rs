@@ -154,25 +154,16 @@ pub fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
     }
 }
 
-fn random_index_pairs(min: usize, max: usize) -> impl Iterator<Item = (usize, usize)> {
+pub fn random_index_pairs(min: usize, max: usize) -> impl Iterator<Item = (usize, usize)> {
     (1..(max - min)).rev().map(move |i| {
         let j = (js_api::random() * (i + 1) as f64).floor() as usize;
-        (i + min, j + min)
+
+        let (ii, jj) = (i + min, j + min);
+        assert!(ii >= min && ii < max);
+        assert!(jj >= min && jj < max);
+
+        (ii, jj)
     })
-}
-
-pub fn shuffle<E, T>(min: usize, max: usize, seq: &mut T)
-    where T: std::ops::IndexMut<usize, Output = E>,
-          E: Clone
-{
-    for (i, j) in random_index_pairs(min, max) {
-        assert!(i >= min && i < max);
-        assert!(j >= min && j < max);
-
-        let tmp = seq[i].clone();
-        seq[i] = seq[j].clone();
-        seq[j] = tmp;
-    }
 }
 
 pub fn format_timestamp(timestamp: f64) -> String {

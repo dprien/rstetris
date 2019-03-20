@@ -19,6 +19,12 @@ pub struct Bag {
     indices: VecDeque<usize>,
 }
 
+fn shuffle<T>(min: usize, max: usize, deque: &mut VecDeque<T>) {
+    for (i, j) in util::random_index_pairs(min, max) {
+        deque.swap(i, j)
+    }
+}
+
 impl BlockMatrix {
     fn new<E, T>(data: T) -> Self
         where E: AsRef<[u8]>,
@@ -143,7 +149,7 @@ impl Bag {
         if self.indices.len() < self.pieces.len() {
             let old_len = self.indices.len();
             self.indices.extend(0..self.pieces.len());
-            util::shuffle(old_len, self.indices.len(), &mut self.indices);
+            shuffle(old_len, self.indices.len(), &mut self.indices);
         }
     }
 
