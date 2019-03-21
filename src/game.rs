@@ -427,9 +427,7 @@ impl RunningState {
 
         let num_taps = controller.touch_input.taps(TOUCH_TAP_DISTANCE_THRESHOLD, TOUCH_TAP_PERIOD_THRESHOLD).count();
         if num_taps > 0 {
-            if self.rotate_piece(1) {
-                self.reset_fall_timer();
-            }
+            self.rotate_piece(1);
         }
 
         None
