@@ -1,4 +1,4 @@
-use std::cell::{RefCell};
+use std::cell::{Cell, RefCell};
 
 use crate::{js_api};
 
@@ -16,6 +16,10 @@ pub struct Clock {
     prev_ts: Option<f64>,
 
     reference_ts: Option<f64>,
+}
+
+pub struct LinearCongruentialGenerator {
+    seed: Cell<u32>,
 }
 
 impl Position {
@@ -116,6 +120,20 @@ impl Clock {
 
         self.prev_ts = self.curr_ts;
         self.curr_ts = Some(timestamp);
+    }
+}
+
+impl LinearCongruentialGenerator {
+    pub fn new(seed: u32) -> Self {
+        Self {
+            seed: Cell::new(seed * 12345),
+        }
+    }
+
+    pub fn next(&self) -> u32 {
+        let x = self.seed.get() * 1103515245 + 12345;
+        self.seed.set(x);
+        x
     }
 }
 
