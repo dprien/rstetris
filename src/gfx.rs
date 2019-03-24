@@ -1,12 +1,10 @@
-use crate::{gfx, util, js_api};
+use crate::{gfx, piece, util, js_api};
 
 mod ease;
 
 pub trait Animation {
-    fn is_active(&self) -> bool;
-    fn is_blocking(&self) -> bool;
-
-    fn tick(&mut self, timestamp: f64);
+    fn should_block(&self) -> bool;
+    fn draw(&self, t: f64);
 }
 
 #[derive(Clone)]
@@ -17,21 +15,15 @@ pub struct Color {
 }
 
 pub struct AnimationQueue {
-    animations: Vec<Box<dyn Animation>>,
+    animations: Vec<(f64, Option<f64>, Box<dyn Animation>)>,
 }
 
 pub struct LineClearAnimation {
-    clock: util::Clock,
-    duration: f64,
-
     rows: Vec<usize>,
     width: usize,
 }
 
 pub struct WhooshAnimation {
-    clock: util::Clock,
-    duration: f64,
-
     points: Vec<(usize, usize)>,
     color: Color,
 
@@ -41,16 +33,13 @@ pub struct WhooshAnimation {
 }
 
 pub struct TitleAnimation {
-    clock: util::Clock,
-
     width: usize,
     height: usize,
+
+    pieces: Vec<piece::Piece>,
 }
 
 pub struct GameOverAnimation {
-    clock: util::Clock,
-    duration: f64,
-
     width: usize,
     height: usize,
 }
@@ -117,30 +106,39 @@ impl AnimationQueue {
     }
 
     pub fn should_block(&self) -> bool {
-        self.animations.iter().any(|x| { x.is_blocking() })
+        self.animations.iter().any(|(_start, _end, anim)| { anim.should_block() })
     }
 
-    pub fn add(&mut self, animation: Box<dyn Animation>) {
-        self.animations.push(animation);
+    pub fn schedule(&mut self, start: f64, duration: f64, anim: Box<dyn Animation>) {
+        self.animations.push((start, Some(start + duration), anim));
     }
 
-    pub fn update(&mut self, timestamp: f64) {
-        if !self.animations.is_empty() {
-            for x in self.animations.iter_mut() {
-                x.tick(timestamp);
-            }
+    pub fn endless(&mut self, anim: Box<dyn Animation>) {
+        self.animations.push((0.0, None, anim));
+    }
 
-            self.animations.retain(|x| { x.is_active() });
+    pub fn tick(&mut self, timestamp: f64) {
+        if self.animations.is_empty() {
+            return;
         }
+
+        for (start, maybe_end, anim) in self.animations.iter() {
+            if timestamp >= *start {
+                let divisor = maybe_end.map(|end| { end - start }).unwrap_or(1000.0);
+                let t = (timestamp - start) / divisor;
+                anim.draw(t);
+            }
+        }
+
+        self.animations.retain(|(_start, maybe_end, _anim)| {
+            maybe_end.map(|end| { timestamp < end }).unwrap_or(true)
+        });
     }
 }
 
 impl LineClearAnimation {
-    pub fn new(rows: Vec<usize>, width: usize, duration: f64) -> Self {
+    pub fn new(rows: Vec<usize>, width: usize) -> Self {
         Self {
-            clock: util::Clock::new(),
-            duration,
-
             rows,
             width,
         }
@@ -148,19 +146,14 @@ impl LineClearAnimation {
 }
 
 impl Animation for LineClearAnimation {
-    fn is_active(&self) -> bool {
-        self.clock.elapsed() < self.duration
-    }
-
-    fn is_blocking(&self) -> bool {
+    fn should_block(&self) -> bool {
         true
     }
 
-    fn tick(&mut self, timestamp: f64) {
-        self.clock.update(timestamp);
+    fn draw(&self, t: f64) {
+        let t = util::clamp(t, 0.0, 1.0);
 
         let color = {
-            let t = util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
             if t <= 0.7 {
                 Color::white().fade(ease::quadratic_out(1.0 - t / 0.7)).to_argb32()
             } else {
@@ -177,13 +170,10 @@ impl Animation for LineClearAnimation {
 }
 
 impl WhooshAnimation {
-    pub fn new<I>(points: I, color: Color, x: i32, y1: i32, y2: i32, duration: f64) -> Self
+    pub fn new<I>(points: I, color: Color, x: i32, y1: i32, y2: i32) -> Self
         where I: IntoIterator<Item = (usize, usize)>
     {
         Self {
-            clock: util::Clock::new(),
-            duration,
-
             points: points.into_iter().collect(),
             color,
             x,
@@ -202,17 +192,12 @@ impl WhooshAnimation {
 }
 
 impl Animation for WhooshAnimation {
-    fn is_active(&self) -> bool {
-        self.clock.elapsed() < self.duration
-    }
-
-    fn is_blocking(&self) -> bool {
+    fn should_block(&self) -> bool {
         true
     }
 
-    fn tick(&mut self, timestamp: f64) {
-        self.clock.update(timestamp);
-        let t = util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
+    fn draw(&self, t: f64) {
+        let t = util::clamp(t, 0.0, 1.0);
 
         for y in self.y1..self.y2 {
             let intensity = {
@@ -235,49 +220,56 @@ impl Animation for WhooshAnimation {
 impl TitleAnimation {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
-            clock: util::Clock::new(),
-
             width,
             height,
+
+            pieces: piece::make_standard(),
+        }
+    }
+
+    fn draw_piece(&self, rng: &util::LinearCongruentialGenerator) {
+        let index = (rng.next() as usize) % self.pieces.len();
+        let rotation = (rng.next() as usize) % 4;
+        let piece = &self.pieces[index];
+        let ((x1, y1), (x2, y2)) = piece.bounds(rotation);
+
+        let cx = rng.next() as usize % (self.width - (x2 - x1)) - x1;
+        let cy = rng.next() as usize % (self.height - (y2 - y1)) - y1;
+
+        for (bx, by) in piece.iter_coords(rotation) {
+            let bx = bx as i32 + cx as i32;
+            let by = by as i32 + cy as i32;
+            js_api::draw_block(bx as u32, by as u32, piece.color.to_argb32());
         }
     }
 }
 
 impl Animation for TitleAnimation {
-    fn is_active(&self) -> bool {
-        true
-    }
-
-    fn is_blocking(&self) -> bool {
+    fn should_block(&self) -> bool {
         false
     }
 
-    fn tick(&mut self, timestamp: f64) {
-        self.clock.update(timestamp);
-        if !self.clock.has_passed_multiple_of(500.0, 0.0) {
-            return;
-        }
-
-        static COLORS: &[u32] = &[0x00ffff, 0xffff00, 0x0000ff, 0xffa500, 0x00ff00, 0xff0000, 0xaa00ff];
+    fn draw(&self, t: f64) {
+        let t = t * 2.0;
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let index = (js_api::random() * COLORS.len() as f64).floor() as usize;
-                let intensity = js_api::random();
-                let color = Color::from_argb32(COLORS[index]).fade(intensity);
-
-                js_api::draw_block(x as u32, y as i32 as u32, color.to_argb32());
+                js_api::draw_block(x as u32, y as u32, 0x000000);
             }
         }
+
+        if t.fract() >= 0.8 {
+            return;
+        }
+
+        let rng = util::LinearCongruentialGenerator::new(t.floor() as u32);
+        self.draw_piece(&rng);
     }
 }
 
 impl GameOverAnimation {
-    pub fn new(width: usize, height: usize, duration: f64) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
-            clock: util::Clock::new(),
-            duration,
-
             width,
             height
         }
@@ -285,20 +277,14 @@ impl GameOverAnimation {
 }
 
 impl Animation for GameOverAnimation {
-    fn is_active(&self) -> bool {
-        self.clock.elapsed() < self.duration
-    }
-
-    fn is_blocking(&self) -> bool {
+    fn should_block(&self) -> bool {
         false
     }
 
-    fn tick(&mut self, timestamp: f64) {
-        self.clock.update(timestamp);
-
+    fn draw(&self, t: f64) {
         let white = gfx::Color::white();
 
-        let t = 1.0 - util::clamp(self.clock.elapsed() / self.duration, 0.0, 1.0);
+        let t = 1.0 - util::clamp(t, 0.0, 1.0);
         let tick_height = t * self.height as f64;
         let tick_y = tick_height.trunc() as usize;
         let tick_t = tick_height.fract();

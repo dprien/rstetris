@@ -41,6 +41,7 @@ struct TitleState {
     board_width: usize,
     board_height: usize,
 
+    anim_clock: util::Clock,
     animations: gfx::AnimationQueue,
 }
 
@@ -48,6 +49,7 @@ struct GameOverState {
     board_width: usize,
     board_height: usize,
 
+    anim_clock: util::Clock,
     animations: gfx::AnimationQueue,
 }
 
@@ -89,7 +91,7 @@ impl Controller {
 impl TitleState {
     fn new(board_width: usize, board_height: usize) -> Self {
         let mut animations = gfx::AnimationQueue::new();
-        animations.add(Box::new(gfx::TitleAnimation::new(board_width, board_height)));
+        animations.endless(Box::new(gfx::TitleAnimation::new(board_width, board_height)));
 
         js_api::html("top_bar", "<span class = \"title\">Press SPACE or swipe up to start</span>");
         js_api::html("stats", "");
@@ -97,6 +99,8 @@ impl TitleState {
         Self {
             board_width,
             board_height,
+
+            anim_clock: util::Clock::new(),
             animations,
         }
     }
@@ -104,7 +108,9 @@ impl TitleState {
 
 impl State for TitleState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
-        self.animations.update(timestamp);
+        self.anim_clock.update(timestamp);
+        self.animations.tick(self.anim_clock.elapsed());
+
         if self.animations.should_block() {
             return None;
         }
@@ -124,19 +130,18 @@ impl State for TitleState {
 
 impl GameOverState {
     fn new(board_width: usize, board_height: usize) -> Self {
-        let anim = gfx::GameOverAnimation::new(
-            board_width,
-            board_height,
-            ANIMATION_DURATION_GAME_OVER);
+        let anim = gfx::GameOverAnimation::new(board_width, board_height);
 
         let mut animations = gfx::AnimationQueue::new();
-        animations.add(Box::new(anim));
+        animations.schedule(0.0, ANIMATION_DURATION_GAME_OVER, Box::new(anim));
 
         js_api::html("top_bar", "<span class = \"game-over\">GAME OVER</span>");
 
         Self {
             board_width,
             board_height,
+
+            anim_clock: util::Clock::new(),
             animations,
         }
     }
@@ -144,7 +149,9 @@ impl GameOverState {
 
 impl State for GameOverState {
     fn tick(&mut self, timestamp: f64, controller: &Controller) -> Option<Box<dyn State>> {
-        self.animations.update(timestamp);
+        self.anim_clock.update(timestamp);
+        self.animations.tick(self.anim_clock.elapsed());
+
         if self.animations.should_block() {
             return None;
         }
@@ -232,12 +239,8 @@ impl RunningState {
             self.num_cleared_lines += cleared_lines.len() as u32;
             self.level = (1 + self.num_cleared_lines / 10).min(20);
 
-            let anim = gfx::LineClearAnimation::new(
-                cleared_lines,
-                self.board.width(),
-                ANIMATION_DURATION_LINE_CLEAR,
-            );
-            self.animations.add(Box::new(anim));
+            let anim = gfx::LineClearAnimation::new(cleared_lines, self.board.width());
+            self.animations.schedule(self.anim_clock.elapsed(), ANIMATION_DURATION_LINE_CLEAR, Box::new(anim));
         }
     }
 
@@ -330,10 +333,9 @@ impl RunningState {
                 piece.color.clone(),
                 self.position.x,
                 self.position.y,
-                drop_pos.y,
-                ANIMATION_DURATION_HARD_DROP);
+                drop_pos.y);
 
-            self.animations.add(Box::new(anim));
+            self.animations.schedule(self.anim_clock.elapsed(), ANIMATION_DURATION_HARD_DROP, Box::new(anim));
         }
 
         self.position = drop_pos;
@@ -495,10 +497,9 @@ impl RunningState {
         }
 
         self.anim_clock.toggle(self.animations.is_empty());
-        self.animations.update(self.anim_clock.elapsed());
+        self.animations.tick(self.anim_clock.elapsed());
 
         self.game_clock.toggle(self.animations.should_block());
-
         if !self.game_clock.is_suspended() {
             self.board.draw();
 
