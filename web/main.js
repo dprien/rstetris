@@ -34,28 +34,32 @@ function register_object(wasm_module, wasm_instance) {
     tile_image.src = "tile.png";
 
     let game_object_address = null;
+    const init = () => {
+        ctx.clearRect(0, 0, BOARD_WIDTH_PX, BOARD_HEIGHT_PX);
+        draw_grid();
+
+        game_object_address = wasm_instance.exports.Game_new(BOARD_WIDTH, BOARD_HEIGHT);
+
+        window.addEventListener("keydown", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 1); }, false);
+        window.addEventListener("keyup", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 0); }, false);
+
+        function call_touch_handlers(e, handler) {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                let touch = e.changedTouches[i];
+                handler(game_object_address, touch.identifier, touch.pageX, touch.pageY);
+            }
+        }
+
+        canvas.addEventListener("touchstart", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_start_handler); }, false);
+        canvas.addEventListener("touchend", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_end_handler); }, false);
+        canvas.addEventListener("touchcancel", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_cancel_handler); }, false);
+        canvas.addEventListener("touchmove", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_move_handler); }, false);
+    };
+
     const tick = timestamp => {
         if (game_object_address === null) {
-            ctx.clearRect(0, 0, BOARD_WIDTH_PX, BOARD_HEIGHT_PX);
-            draw_grid();
-
-            game_object_address = wasm_instance.exports.Game_new(BOARD_WIDTH, BOARD_HEIGHT);
-
-            window.addEventListener("keydown", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 1); }, false);
-            window.addEventListener("keyup", e => { wasm_instance.exports.Game_key_handler(game_object_address, e.keyCode, 0); }, false);
-
-            function call_touch_handlers(e, handler) {
-                e.preventDefault();
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    let touch = e.changedTouches[i];
-                    handler(game_object_address, touch.identifier, touch.pageX, touch.pageY);
-                }
-            }
-
-            canvas.addEventListener("touchstart", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_start_handler); }, false);
-            canvas.addEventListener("touchend", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_end_handler); }, false);
-            canvas.addEventListener("touchcancel", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_cancel_handler); }, false);
-            canvas.addEventListener("touchmove", e => { call_touch_handlers(e, wasm_instance.exports.Game_touch_move_handler); }, false);
+            init();
         }
 
         wasm_instance.exports.Game_tick(game_object_address, timestamp);
