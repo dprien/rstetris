@@ -128,13 +128,14 @@ function register_object(wasm_module, wasm_instance) {
 
 (function () {
     let shims = null;
-    const importObject = {
-        env: {
-            console_log: function () { return shims.console_log.apply(this, arguments); },
-            draw_block: function () { return shims.draw_block.apply(this, arguments); },
-            random: function () { return shims.random.apply(this, arguments); },
-            html: function () { return shims.html.apply(this, arguments); },
+    const shim_handler = {
+        get: function (obj, prop) {
+            return function () { return shims[prop].apply(this, arguments); };
         }
+    };
+
+    const importObject = {
+        env: new Proxy({}, shim_handler),
     };
 
     fetch("rstetris.wasm")
