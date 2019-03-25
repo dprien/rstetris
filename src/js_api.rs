@@ -35,6 +35,34 @@ pub unsafe extern fn stack_pop() -> u32 {
     GLOBAL_STACK.pop()
 }
 
+#[no_mangle]
+pub extern fn alloc(size: u32) -> u32 {
+    assert!(size > 0);
+    let mut v = Vec::with_capacity(size as usize);
+    let ptr: *mut u8 = v.as_mut_ptr();
+    std::mem::forget(v);
+
+    ptr as u32
+}
+
+#[no_mangle]
+pub unsafe extern fn dealloc(address: u32, size: u32) {
+    assert!(size > 0);
+    let ptr = address as *mut u8;
+    let v = Vec::from_raw_parts(ptr, size as usize, size as usize);
+    std::mem::drop(v);
+}
+
+pub unsafe fn string_from_global_stack() -> String {
+    let (len, address) = (stack_pop(), stack_pop());
+
+    assert!(len > 0);
+    let ptr = address as *mut u8;
+    let v = Vec::from_raw_parts(ptr, len as usize, len as usize);
+
+    String::from_utf8_unchecked(v)
+}
+
 extern {
     #[link_name = "console_log"]
     fn _js_console_log(address: u32, length: u32);

@@ -1,5 +1,21 @@
 "use strict";
 
+function string_from_rust(instance, address, length) {
+    const octets = new Uint8Array(instance.exports.memory.buffer, address, length);
+    return new TextDecoder().decode(octets);
+}
+
+function string_to_rust(instance, s) {
+    const octets = new TextEncoder("utf-8").encode(s);
+    const address = instance.exports.alloc(octets.length);
+
+    let view = new Uint8Array(instance.exports.memory.buffer);
+    view.set(octets, address);
+
+    instance.exports.stack_push(address);
+    instance.exports.stack_push(octets.length);
+}
+
 function register_object(wasm_module, wasm_instance) {
     const BOARD_WIDTH = 10;
     const BOARD_HEIGHT = 20;
@@ -86,8 +102,7 @@ function register_object(wasm_module, wasm_instance) {
     };
 
     const console_log = (address, length) => {
-        const buffer = new Uint8Array(wasm_instance.exports.memory.buffer, address, length);
-        const s = new TextDecoder().decode(buffer);
+        const s = string_from_rust(wasm_instance, address, length);
         console.log(s);
     };
 
@@ -96,12 +111,8 @@ function register_object(wasm_module, wasm_instance) {
     };
 
     const html = (id_addr, id_len, html_addr, html_len) => {
-        const id_buf = new Uint8Array(wasm_instance.exports.memory.buffer, id_addr, id_len);
-        const id = new TextDecoder().decode(id_buf);
-
-        const html_buf = new Uint8Array(wasm_instance.exports.memory.buffer, html_addr, html_len);
-        const html = new TextDecoder().decode(html_buf);
-
+        const id = string_from_rust(wasm_instance, id_addr, id_len);
+        const html = string_from_rust(wasm_instance, html_addr, html_len);
         document.getElementById(id).innerHTML = html;
     }
 
