@@ -1,3 +1,40 @@
+const GLOBAL_STACK_SIZE: usize = 16;
+
+static mut GLOBAL_STACK: Stack = Stack { index: 0, data: StackData([0; GLOBAL_STACK_SIZE]) };
+
+#[repr(align(8))]
+struct StackData([u32; GLOBAL_STACK_SIZE]);
+
+pub struct Stack {
+    index: usize,
+    data: StackData,
+}
+
+impl Stack {
+    fn push(&mut self, value: u32) {
+        assert!(self.index < self.data.0.len());
+        self.data.0[self.index] = value;
+        self.index += 1;
+    }
+
+    fn pop(&mut self) -> u32 {
+        assert!(self.index > 0);
+        self.index -= 1;
+
+        self.data.0[self.index]
+    }
+}
+
+#[no_mangle]
+pub unsafe extern fn stack_push(value: u32) {
+    GLOBAL_STACK.push(value);
+}
+
+#[no_mangle]
+pub unsafe extern fn stack_pop() -> u32 {
+    GLOBAL_STACK.pop()
+}
+
 extern {
     #[link_name = "console_log"]
     fn _js_console_log(address: u32, length: u32);
