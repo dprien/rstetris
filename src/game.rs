@@ -1,4 +1,4 @@
-use crate::{input, gfx, piece, board, util, js_api};
+use crate::{input, gfx, piece, board, util, wasm_glue, js_api};
 
 const BLOCK_SIZE_PX: i32 = 50;
 
@@ -575,35 +575,35 @@ impl Game {
 
 #[no_mangle]
 pub extern fn Game_new(board_width: usize, board_height: usize) -> u32 {
-    js_api::into_address(Game::new(board_width, board_height))
+    wasm_glue::into_address(Game::new(board_width, board_height))
 }
 
 #[no_mangle]
 pub extern fn Game_key_handler(address: u32, key_code: i32, state: i32) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.key_handler(key_code, state) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.key_handler(key_code, state) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_start_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_start_handler(touch_id, x, y) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.touch_start_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_end_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_end_handler(touch_id, x, y) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.touch_end_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_cancel_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_cancel_handler(touch_id, x, y) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.touch_cancel_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_move_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_move_handler(touch_id, x, y) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.touch_move_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_tick(address: u32, timestamp: f64) {
-    js_api::with_address_as_mut(address, |o: &mut Game| { o.tick(timestamp) })
+    wasm_glue::with_address_as_mut(address, |o: &mut Game| { o.tick(timestamp) })
 }

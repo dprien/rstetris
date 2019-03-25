@@ -6,5 +6,6 @@ mod gfx;
 mod piece;
 mod board;
 mod util;
+mod wasm_glue;
 mod js_api;
 mod game;
