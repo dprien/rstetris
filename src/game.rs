@@ -575,35 +575,35 @@ impl Game {
 
 #[no_mangle]
 pub extern fn Game_new(board_width: usize, board_height: usize) -> u32 {
-    util::into_address(Game::new(board_width, board_height))
+    js_api::into_address(Game::new(board_width, board_height))
 }
 
 #[no_mangle]
 pub extern fn Game_key_handler(address: u32, key_code: i32, state: i32) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.key_handler(key_code, state) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.key_handler(key_code, state) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_start_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.touch_start_handler(touch_id, x, y) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_start_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_end_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.touch_end_handler(touch_id, x, y) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_end_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_cancel_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.touch_cancel_handler(touch_id, x, y) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_cancel_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_touch_move_handler(address: u32, touch_id: i32, x: i32, y: i32) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.touch_move_handler(touch_id, x, y) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.touch_move_handler(touch_id, x, y) })
 }
 
 #[no_mangle]
 pub extern fn Game_tick(address: u32, timestamp: f64) {
-    util::with_address_as_mut(address, |o: &mut Game| { o.tick(timestamp) })
+    js_api::with_address_as_mut(address, |o: &mut Game| { o.tick(timestamp) })
 }

@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell};
 
 use crate::{js_api};
 
@@ -135,31 +135,6 @@ impl LinearCongruentialGenerator {
         self.seed.set(x);
         x
     }
-}
-
-pub fn into_address<T>(obj: T) -> u32 {
-    let obj = Box::new(RefCell::new(obj));
-    Box::into_raw(obj) as u32
-}
-
-pub unsafe fn address_as_refcell<'a, T>(address: u32) -> &'a RefCell<T> {
-    let ptr = address as *mut RefCell<T>;
-    assert!(!ptr.is_null());
-    &*ptr
-}
-
-pub fn with_address_as_ref<T, F, R>(address: u32, f: F) -> R
-    where F: FnOnce(&T) -> R
-{
-    let rc = unsafe { address_as_refcell(address) };
-    f(&rc.borrow())
-}
-
-pub fn with_address_as_mut<T, F, R>(address: u32, f: F) -> R
-    where F: FnOnce(&mut T) -> R
-{
-    let rc = unsafe { address_as_refcell(address) };
-    f(&mut rc.borrow_mut())
 }
 
 pub fn clamp<T: PartialOrd>(v: T, min: T, max: T) -> T {
