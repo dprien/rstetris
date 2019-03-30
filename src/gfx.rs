@@ -1,4 +1,4 @@
-use crate::{gfx, piece, util, js_api};
+use crate::{piece, util, js_api};
 
 mod ease;
 
@@ -282,7 +282,7 @@ impl Animation for GameOverAnimation {
     }
 
     fn draw(&self, t: f64) {
-        let white = gfx::Color::white();
+        let white = Color::white();
 
         let t = 1.0 - util::clamp(t, 0.0, 1.0);
         let tick_height = t * self.height as f64;

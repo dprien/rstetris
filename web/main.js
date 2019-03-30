@@ -97,11 +97,11 @@ function register_object(wasm_module, wasm_instance) {
             ctx.fillRect(cx, cy, cw, ch);
         } else {
             ctx.globalCompositeOperation = "source-over";
+            ctx.drawImage(tile_image, cx, cy, cw, ch);
+
+            ctx.globalCompositeOperation = "multiply";
             ctx.fillStyle = "#" + color.toString(16).padStart(6, "0");
             ctx.fillRect(cx, cy, cw, ch);
-
-            ctx.globalCompositeOperation = "hard-light";
-            ctx.drawImage(tile_image, cx, cy, cw, ch);
         }
     };
 
